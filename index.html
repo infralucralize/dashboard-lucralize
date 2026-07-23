@@ -50,7 +50,7 @@
 <button id="loginBtn">1. Fazer login com Microsoft</button>
 <button id="findSiteBtn" disabled>2. Buscar o site do SharePoint</button>
 <button id="findListBtn" disabled>3. Buscar a lista "Controle de Clientes"</button>
-<button id="findItemsBtn" disabled>4. Buscar 5 itens da lista</button>
+<button id="findItemsBtn" disabled>4. Buscar cliente "LS Consultoria" (ver campo Grupo)</button>
 
 <div id="userInfo"></div>
 
@@ -91,10 +91,10 @@ function renderResult(containerId, title, ok, data) {
   el.innerHTML = `<div class="result-title ${cls}">${icon} ${title}</div><pre>${JSON.stringify(data, null, 2).slice(0, 4000)}</pre>`;
 }
 
-async function graphGet(path) {
-  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  });
+async function graphGet(path, extraHeaders) {
+  const headers = { 'Authorization': `Bearer ${accessToken}` };
+  if (extraHeaders) Object.assign(headers, extraHeaders);
+  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers });
   const body = await response.json();
   return { status: response.status, body };
 }
@@ -162,8 +162,12 @@ document.getElementById('findItemsBtn').addEventListener('click', async () => {
   btn.disabled = true;
   document.getElementById('resultItems').innerHTML = 'Buscando...';
   try {
-    const { status, body } = await graphGet(`/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=5`);
-    renderResult('resultItems', `Buscar itens da lista (status ${status})`, status === 200, body);
+    const filterQuery = encodeURIComponent("fields/Title eq 'LS CONSULTORIA E SERVICOS LTDA'");
+    const { status, body } = await graphGet(
+      `/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=${filterQuery}`,
+      { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' }
+    );
+    renderResult('resultItems', `Buscar cliente específico (status ${status})`, status === 200, body);
   } catch (err) {
     renderResult('resultItems', 'Erro: ' + err.message, false, {});
   } finally {

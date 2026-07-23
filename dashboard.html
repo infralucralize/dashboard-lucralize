@@ -74,8 +74,7 @@
   #statusLine.ok{color:var(--good);}
   #statusLine.err{color:var(--bad);}
   .npsq-select{
-    background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    padding:8px 12px; border-radius:8px; font-size:13px; outline:none; min-width:260px;
+    display:none;
   }
   #dashboardArea{display:none;}
   #dashboardArea.show{display:block;}
@@ -256,10 +255,6 @@
 
   <div class="config-actions">
     <button class="btn-primary" id="loadBtn">Carregar dashboard</button>
-    <span id="npsQuestionWrap" style="display:none; align-items:center; gap:8px;">
-      <label style="font-size:12.5px; color:var(--muted);">Pergunta usada como NPS:</label>
-      <select class="npsq-select" id="npsQuestionSelect"></select>
-    </span>
   </div>
 
   <div class="config-actions">
@@ -1443,16 +1438,12 @@ async function loadAllData(isAuto){
 
     logStatus('Buscando perguntas de avaliação no Digisac...');
     const questions = await fetchQuestions(baseUrl, token);
-    const sel = document.getElementById('npsQuestionSelect');
-    sel.innerHTML = questions.map(q => {
-      const label = q.title || q.name || q.text || q.id;
-      return `<option value="${q.id}">${label}</option>`;
-    }).join('');
-    document.getElementById('npsQuestionWrap').style.display = 'inline-flex';
-    // tenta auto-selecionar uma pergunta cujo nome mencione "nps"
-    const npsGuess = questions.find(q => /nps/i.test(q.title || q.name || q.text || ''));
-    if(npsGuess) sel.value = npsGuess.id;
-    const chosenQuestionId = sel.value;
+    const NPS_QUESTION_NAME = 'Pesquisa de Satisfação';
+    const npsQuestion = questions.find(q => (q.title || q.name || q.text || '').trim() === NPS_QUESTION_NAME);
+    if(!npsQuestion){
+      throw new Error(`Não encontrei a pergunta "${NPS_QUESTION_NAME}" na lista de avaliações do Digisac. Confira se o nome ainda é esse lá no sistema.`);
+    }
+    const chosenQuestionId = npsQuestion.id;
 
     logStatus('Buscando departamentos e contatos no Digisac...');
     const deptMap = await fetchDepartmentMap(baseUrl, token);

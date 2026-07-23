@@ -1196,24 +1196,31 @@ async function fetchAllTickets(baseUrl, token, fromISO, toISO){
   let all = [];
   let page = 1;
   const perPage = 100;
-  const query = {
-    distinct: true,
-    order: [['updatedAt','DESC']],
-    include: [
-      { model: 'contact', attributes: ['id','name'] },
-      { model: 'department', attributes: ['id','name'] }
-    ]
-  };
   while(true){
-    const q = { ...query, page, perPage };
-    const path = `/api/v1/tickets?startPeriod=${encodeURIComponent(fromISO)}&endPeriod=${encodeURIComponent(toISO)}&query=${encodeURIComponent(JSON.stringify(q))}`;
+    const query = {
+      distinct: true,
+      order: [['updatedAt','DESC']],
+      where: {
+        startedAt: { '$gte': fromISO, '$lte': toISO }
+      },
+      include: [
+        { model: 'contact', attributes: ['id','name'] },
+        { model: 'department', attributes: ['id','name'] }
+      ],
+      page,
+      perPage
+    };
+    const path = `/api/v1/tickets?query=${encodeURIComponent(JSON.stringify(query))}`;
     const resp = await digisacGet(baseUrl, token, path);
     const data = resp.data || [];
     all = all.concat(data);
     logStatus(`Chamados: ${all.length} carregados (página ${page})...`);
     if(data.length < perPage) break;
     page++;
-    if(page > 300) break; // trava de segurança
+    if(page > 60){
+      logStatus('⚠️ Parando por segurança: mais de 6.000 chamados retornados para esse período — isso é maior do que o esperado. Provavelmente o filtro de data não está funcionando como deveria. Confira as datas e tente um período mais curto antes de continuar.', 'err');
+      break;
+    }
   }
   return all;
 }

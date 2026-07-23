@@ -256,6 +256,15 @@
     </span>
   </div>
 
+  <div class="config-actions">
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+      <input type="checkbox" id="liveModeChk" style="cursor:pointer;">
+      <span>Modo ao vivo — mostrar sempre os últimos 6 meses e atualizar sozinho (a cada 15 min)</span>
+    </label>
+    <button class="btn-secondary" id="stopLiveBtn" style="display:none;">Parar atualização automática</button>
+    <span id="liveStatus" style="font-size:12px; color:var(--muted);"></span>
+  </div>
+
   <div id="loadStatus" style="margin-top:14px;">
     <div class="progress-wrap" id="progressWrap"><div class="progress-bar"></div></div>
     <div id="statusLine"></div>
@@ -1361,8 +1370,11 @@ async function fetchContactMap(baseUrl, token){
 
 // ---- orquestração principal ----
 let graphAccessToken = null;
+let msalAccount = null;
+let liveModeInterval = null;
+const LIVE_REFRESH_MS = 15 * 60 * 1000; // 15 minutos
 
-async function loadAllData(){
+async function loadAllData(isAuto){
   const btn = document.getElementById('loadBtn');
   btn.disabled = true;
   clearStatus();
@@ -1372,8 +1384,7 @@ async function loadAllData(){
     baseUrl = 'https://' + baseUrl;
   }
   const password = document.getElementById('cfgPassword').value;
-  const fromDate = document.getElementById('cfgFrom').value;
-  const toDate = document.getElementById('cfgTo').value;
+  const liveMode = document.getElementById('liveModeChk').checked;
 
   if(!baseUrl || !password){
     logStatus('Preencha a URL base e a senha de acesso.', 'err');
@@ -1382,19 +1393,43 @@ async function loadAllData(){
   }
 
   localStorage.setItem('digisac_base_url', baseUrl);
+  localStorage.setItem('digisac_live_mode', liveMode ? '1' : '0');
 
-  const fromISO = fromDate ? new Date(fromDate + 'T00:00:00').toISOString() : (() => { const d = new Date(); d.setMonth(d.getMonth()-6); return d.toISOString(); })();
-  const toISO = toDate ? new Date(toDate + 'T23:59:59').toISOString() : new Date().toISOString();
+  let fromISO, toISO;
+  if(liveMode){
+    // janela rolante: sempre os últimos 6 meses a partir de agora
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    fromISO = sixMonthsAgo.toISOString();
+    toISO = now.toISOString();
+  } else {
+    const fromDate = document.getElementById('cfgFrom').value;
+    const toDate = document.getElementById('cfgTo').value;
+    fromISO = fromDate ? new Date(fromDate + 'T00:00:00').toISOString() : (() => { const d = new Date(); d.setMonth(d.getMonth()-6); return d.toISOString(); })();
+    toISO = toDate ? new Date(toDate + 'T23:59:59').toISOString() : new Date().toISOString();
+  }
 
   try{
     logStatus('Decifrando token de acesso...');
     const token = await decryptDigisacToken(password);
     logStatus('Senha correta.', 'ok');
 
-    logStatus('Fazendo login com Microsoft...');
-    if(!graphAccessToken){
+    logStatus('Autenticando com Microsoft...');
+    try{
+      if(msalAccount){
+        const result = await msalInstance.acquireTokenSilent({ scopes: ["Sites.Read.All","User.Read"], account: msalAccount });
+        graphAccessToken = result.accessToken;
+      } else {
+        throw new Error('sem conta em cache');
+      }
+    } catch(silentErr){
+      if(isAuto){
+        throw new Error('A sessão da Microsoft expirou e a atualização automática não pode abrir um popup de login sozinha. Clique em "Carregar dashboard" pra logar de novo.');
+      }
       const result = await msalInstance.loginPopup({ scopes: ["Sites.Read.All","User.Read"] });
       graphAccessToken = result.accessToken;
+      msalAccount = result.account;
     }
     logStatus('Login OK.', 'ok');
 
@@ -1485,9 +1520,17 @@ async function loadAllData(){
     });
 
     TICKETS = built;
-    logStatus(`Pronto! ${TICKETS.length} chamados processados.`, 'ok');
+    const now = new Date();
+    logStatus(`Pronto! ${TICKETS.length} chamados processados. (atualizado às ${now.toLocaleTimeString('pt-BR')})`, 'ok');
     finishStatus();
     initDashboardUI();
+
+    if(liveMode){
+      document.getElementById('liveStatus').textContent = `Modo ao vivo ativo — próxima atualização às ${new Date(Date.now() + LIVE_REFRESH_MS).toLocaleTimeString('pt-BR')}`;
+      document.getElementById('stopLiveBtn').style.display = 'inline-block';
+      if(liveModeInterval) clearInterval(liveModeInterval);
+      liveModeInterval = setInterval(() => loadAllData(true), LIVE_REFRESH_MS);
+    }
 
   } catch(err){
     logStatus('Erro: ' + err.message, 'err');
@@ -1497,7 +1540,26 @@ async function loadAllData(){
   }
 }
 
-document.getElementById('loadBtn').addEventListener('click', loadAllData);
+document.getElementById('loadBtn').addEventListener('click', () => loadAllData(false));
+document.getElementById('stopLiveBtn').addEventListener('click', () => {
+  if(liveModeInterval){ clearInterval(liveModeInterval); liveModeInterval = null; }
+  document.getElementById('liveModeChk').checked = false;
+  document.getElementById('cfgFrom').disabled = false;
+  document.getElementById('cfgTo').disabled = false;
+  document.getElementById('stopLiveBtn').style.display = 'none';
+  document.getElementById('liveStatus').textContent = 'Atualização automática parada.';
+});
+document.getElementById('liveModeChk').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  document.getElementById('cfgFrom').disabled = on;
+  document.getElementById('cfgTo').disabled = on;
+  if(!on && liveModeInterval){
+    clearInterval(liveModeInterval);
+    liveModeInterval = null;
+    document.getElementById('stopLiveBtn').style.display = 'none';
+    document.getElementById('liveStatus').textContent = '';
+  }
+});
 document.getElementById('forgetTokenBtn').addEventListener('click', () => {
   localStorage.removeItem('digisac_base_url');
   document.getElementById('cfgBaseUrl').value = '';
@@ -1508,6 +1570,12 @@ document.getElementById('forgetTokenBtn').addEventListener('click', () => {
 (function restoreConfig(){
   const savedUrl = localStorage.getItem('digisac_base_url');
   if(savedUrl) document.getElementById('cfgBaseUrl').value = savedUrl;
+  const savedLive = localStorage.getItem('digisac_live_mode');
+  if(savedLive === '1'){
+    document.getElementById('liveModeChk').checked = true;
+    document.getElementById('cfgFrom').disabled = true;
+    document.getElementById('cfgTo').disabled = true;
+  }
 })();
 
 // init (called after live data finishes loading — see loadAllData())

@@ -49,6 +49,25 @@
   #loadStatus{font-size:12.5px; color:var(--muted); white-space:pre-line; line-height:1.6;}
   #loadStatus .err{color:var(--bad);}
   #loadStatus .ok{color:var(--good);}
+
+  .progress-wrap{
+    height:8px; border-radius:4px; background:var(--panel2); overflow:hidden; margin-top:14px; display:none;
+  }
+  .progress-wrap.show{display:block;}
+  .progress-bar{
+    height:100%; width:30%; border-radius:4px;
+    background:linear-gradient(90deg, var(--accent), var(--accent2));
+    background-size:200% 100%;
+    animation: progressSlide 1.4s ease-in-out infinite;
+  }
+  @keyframes progressSlide{
+    0%{ background-position: 0% 0; margin-left:0%; }
+    50%{ margin-left:65%; }
+    100%{ margin-left:0%; }
+  }
+  #statusLine{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  #statusLine.ok{color:var(--good);}
+  #statusLine.err{color:var(--bad);}
   .npsq-select{
     background:var(--panel2); border:1px solid var(--border); color:var(--text);
     padding:8px 12px; border-radius:8px; font-size:13px; outline:none; min-width:260px;
@@ -205,7 +224,7 @@
 
 <div class="config-panel">
   <h2>Carregar dados</h2>
-  <div class="sub">Preencha uma vez — o token do Digisac fica só no seu navegador (localStorage), nunca é enviado pra nenhum lugar além da própria API do Digisac.</div>
+  <div class="sub">O token real do Digisac fica cifrado no código, só é decifrado no seu navegador com a senha certa — nunca fica salvo em texto puro em lugar nenhum.</div>
 
   <div class="config-row">
     <div class="config-field">
@@ -213,8 +232,8 @@
       <input type="text" id="cfgBaseUrl" placeholder="https://lucralizecontabil.digisac.me">
     </div>
     <div class="config-field">
-      <label for="cfgToken">Token de acesso pessoal (Digisac)</label>
-      <input type="password" id="cfgToken" placeholder="Cole o token aqui">
+      <label for="cfgPassword">Senha de acesso</label>
+      <input type="password" id="cfgPassword" placeholder="Senha combinada com a diretoria">
     </div>
   </div>
   <div class="config-row">
@@ -230,14 +249,17 @@
 
   <div class="config-actions">
     <button class="btn-primary" id="loadBtn">Carregar dashboard</button>
-    <button class="btn-secondary" id="forgetTokenBtn">Esquecer token salvo</button>
+    <button class="btn-secondary" id="forgetTokenBtn">Esquecer URL salva</button>
     <span id="npsQuestionWrap" style="display:none; align-items:center; gap:8px;">
       <label style="font-size:12.5px; color:var(--muted);">Pergunta usada como NPS:</label>
       <select class="npsq-select" id="npsQuestionSelect"></select>
     </span>
   </div>
 
-  <div id="loadStatus" style="margin-top:14px;"></div>
+  <div id="loadStatus" style="margin-top:14px;">
+    <div class="progress-wrap" id="progressWrap"><div class="progress-bar"></div></div>
+    <div id="statusLine"></div>
+  </div>
 </div>
 
 <div id="dashboardArea">
@@ -1041,6 +1063,43 @@ const MSAL_CONFIG = {
 };
 const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
 
+// ---- token do Digisac cifrado (AES-256-GCM) ----
+// Gerado com a ferramenta "gerador_token_cifrado.html" — sem a senha certa, este
+// bloco não pode ser revertido para o token original.
+const ENCRYPTED_TOKEN_BLOB = "{"salt":"SsjbwYf2+SvHVh+6CCaZWQ==","iv":"/D0jsns0Qap4IiIQ","ct":"5vDL7Bs15kJ4nXWtx1q7Ldy/i+fnCs/DmfVh/IRZTENO7rMxsbJPLIm5ClpbcWM2jadT4Dfj1bM="}";
+
+function b64ToBuf(b64){
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+async function deriveKey(password, saltBytes){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt: saltBytes, iterations: 150000, hash:'SHA-256' },
+    keyMaterial,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['decrypt']
+  );
+}
+async function decryptDigisacToken(password){
+  const blob = JSON.parse(ENCRYPTED_TOKEN_BLOB);
+  const salt = b64ToBuf(blob.salt);
+  const iv = b64ToBuf(blob.iv);
+  const key = await deriveKey(password, salt);
+  const ctBuf = b64ToBuf(blob.ct);
+  let plainBuf;
+  try{
+    plainBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ctBuf);
+  } catch(e){
+    throw new Error('Senha incorreta.');
+  }
+  return new TextDecoder().decode(plainBuf);
+}
+
 const SITE_HOSTNAME = "lucralize.sharepoint.com";
 const LIST_NAME = "Controle de Clientes";
 const FIELD_TITLE = "Title";
@@ -1049,14 +1108,20 @@ const FIELD_SITUACAO = "Situa_x00e7__x00e3_o";
 const FIELD_GRUPO = "GrupoEmpresarial";
 
 function logStatus(msg, cls){
-  const el = document.getElementById('loadStatus');
-  const span = document.createElement('div');
-  if(cls) span.className = cls;
-  span.textContent = msg;
-  el.appendChild(span);
+  const line = document.getElementById('statusLine');
+  line.textContent = msg;
+  line.className = cls || '';
+  if(cls === 'err'){
+    document.getElementById('progressWrap').classList.remove('show');
+  }
 }
 function clearStatus(){
-  document.getElementById('loadStatus').innerHTML = '';
+  document.getElementById('statusLine').textContent = '';
+  document.getElementById('statusLine').className = '';
+  document.getElementById('progressWrap').classList.add('show');
+}
+function finishStatus(){
+  document.getElementById('progressWrap').classList.remove('show');
 }
 
 // ---- normalização/tokenização (mesma lógica usada no cruzamento offline) ----
@@ -1293,23 +1358,26 @@ async function loadAllData(){
   clearStatus();
 
   const baseUrl = document.getElementById('cfgBaseUrl').value.trim().replace(/\/+$/, '');
-  const token = document.getElementById('cfgToken').value.trim();
+  const password = document.getElementById('cfgPassword').value;
   const fromDate = document.getElementById('cfgFrom').value;
   const toDate = document.getElementById('cfgTo').value;
 
-  if(!baseUrl || !token){
-    logStatus('Preencha a URL base e o token do Digisac.', 'err');
+  if(!baseUrl || !password){
+    logStatus('Preencha a URL base e a senha de acesso.', 'err');
     btn.disabled = false;
     return;
   }
 
   localStorage.setItem('digisac_base_url', baseUrl);
-  localStorage.setItem('digisac_token', token);
 
   const fromISO = fromDate ? new Date(fromDate + 'T00:00:00').toISOString() : (() => { const d = new Date(); d.setMonth(d.getMonth()-6); return d.toISOString(); })();
   const toISO = toDate ? new Date(toDate + 'T23:59:59').toISOString() : new Date().toISOString();
 
   try{
+    logStatus('Decifrando token de acesso...');
+    const token = await decryptDigisacToken(password);
+    logStatus('Senha correta.', 'ok');
+
     logStatus('Fazendo login com Microsoft...');
     if(!graphAccessToken){
       const result = await msalInstance.loginPopup({ scopes: ["Sites.Read.All","User.Read"] });
@@ -1405,6 +1473,7 @@ async function loadAllData(){
 
     TICKETS = built;
     logStatus(`Pronto! ${TICKETS.length} chamados processados.`, 'ok');
+    finishStatus();
     initDashboardUI();
 
   } catch(err){
@@ -1417,18 +1486,15 @@ async function loadAllData(){
 
 document.getElementById('loadBtn').addEventListener('click', loadAllData);
 document.getElementById('forgetTokenBtn').addEventListener('click', () => {
-  localStorage.removeItem('digisac_token');
   localStorage.removeItem('digisac_base_url');
-  document.getElementById('cfgToken').value = '';
-  logStatus('Token esquecido.', 'ok');
+  document.getElementById('cfgBaseUrl').value = '';
+  logStatus('URL esquecida.', 'ok');
 });
 
-// restaura URL/token salvos (localStorage) ao abrir a página
+// restaura a URL salva (localStorage) ao abrir a página — a senha nunca é salva
 (function restoreConfig(){
   const savedUrl = localStorage.getItem('digisac_base_url');
-  const savedToken = localStorage.getItem('digisac_token');
   if(savedUrl) document.getElementById('cfgBaseUrl').value = savedUrl;
-  if(savedToken) document.getElementById('cfgToken').value = savedToken;
 })();
 
 // init (called after live data finishes loading — see loadAllData())

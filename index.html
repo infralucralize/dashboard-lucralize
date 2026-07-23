@@ -1192,21 +1192,20 @@ async function digisacGet(baseUrl, token, path){
   return res.json();
 }
 
+// NOTA: descobrimos por teste manual que os parâmetros soltos "startPeriod/endPeriod"
+// (chamados) e "from/to" (avaliações) são IGNORADOS pela API — ela devolve dados
+// antigos (de 2022) mesmo assim. O filtro que realmente funciona é via "query"
+// com "where.<campo>.$gte/$lte". Por isso não usamos mais "include" no query de
+// chamados (parecia interferir no filtro também) — buscamos departamentos e
+// contatos à parte e cruzamos localmente.
+
 async function fetchAllTickets(baseUrl, token, fromISO, toISO){
   let all = [];
   let page = 1;
   const perPage = 100;
   while(true){
     const query = {
-      distinct: true,
-      order: [['updatedAt','DESC']],
-      where: {
-        startedAt: { '$gte': fromISO, '$lte': toISO }
-      },
-      include: [
-        { model: 'contact', attributes: ['id','name'] },
-        { model: 'department', attributes: ['id','name'] }
-      ],
+      where: { startedAt: { '$gte': fromISO, '$lte': toISO } },
       page,
       perPage
     };
@@ -1217,8 +1216,8 @@ async function fetchAllTickets(baseUrl, token, fromISO, toISO){
     logStatus(`Chamados: ${all.length} carregados (página ${page})...`);
     if(data.length < perPage) break;
     page++;
-    if(page > 60){
-      logStatus('⚠️ Parando por segurança: mais de 6.000 chamados retornados para esse período — isso é maior do que o esperado. Provavelmente o filtro de data não está funcionando como deveria. Confira as datas e tente um período mais curto antes de continuar.', 'err');
+    if(page > 200){
+      logStatus('⚠️ Parando por segurança: mais de 20.000 chamados retornados — confira o período pedido.', 'err');
       break;
     }
   }
@@ -1230,14 +1229,22 @@ async function fetchAllAnswers(baseUrl, token, fromISO, toISO){
   let page = 1;
   const perPage = 100;
   while(true){
-    const path = `/api/v1/answers?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}&page=${page}&perPage=${perPage}`;
+    const query = {
+      where: { createdAt: { '$gte': fromISO, '$lte': toISO } },
+      page,
+      perPage
+    };
+    const path = `/api/v1/answers?query=${encodeURIComponent(JSON.stringify(query))}`;
     const resp = await digisacGet(baseUrl, token, path);
     const data = resp.data || [];
     all = all.concat(data);
     logStatus(`Avaliações: ${all.length} carregadas (página ${page})...`);
     if(data.length < perPage) break;
     page++;
-    if(page > 300) break;
+    if(page > 200){
+      logStatus('⚠️ Parando por segurança: mais de 20.000 avaliações retornadas — confira o período pedido.', 'err');
+      break;
+    }
   }
   return all;
 }
@@ -1245,6 +1252,36 @@ async function fetchAllAnswers(baseUrl, token, fromISO, toISO){
 async function fetchQuestions(baseUrl, token){
   const resp = await digisacGet(baseUrl, token, `/api/v1/questions?perPage=100`);
   return resp.data || [];
+}
+
+async function fetchDepartmentMap(baseUrl, token){
+  const map = new Map();
+  let page = 1;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/departments?perPage=100&page=${page}`);
+    const data = resp.data || [];
+    data.forEach(d => map.set(d.id, d.name));
+    if(data.length < 100) break;
+    page++;
+    if(page > 20) break;
+  }
+  return map;
+}
+
+async function fetchContactMap(baseUrl, token){
+  const map = new Map();
+  let page = 1;
+  const perPage = 200;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/contacts?perPage=${perPage}&page=${page}`);
+    const data = resp.data || [];
+    data.forEach(c => map.set(c.id, c.name));
+    logStatus(`Contatos: ${map.size} carregados (página ${page})...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 500) break;
+  }
+  return map;
 }
 
 // ---- orquestração principal ----
@@ -1297,6 +1334,11 @@ async function loadAllData(){
     if(npsGuess) sel.value = npsGuess.id;
     const chosenQuestionId = sel.value;
 
+    logStatus('Buscando departamentos e contatos no Digisac...');
+    const deptMap = await fetchDepartmentMap(baseUrl, token);
+    const contactMap = await fetchContactMap(baseUrl, token);
+    logStatus(`${deptMap.size} departamentos e ${contactMap.size} contatos carregados.`, 'ok');
+
     logStatus('Buscando chamados no Digisac (pode levar um tempinho)...');
     const rawTickets = await fetchAllTickets(baseUrl, token, fromISO, toISO);
     logStatus(`${rawTickets.length} chamados carregados.`, 'ok');
@@ -1317,7 +1359,7 @@ async function loadAllData(){
     const matcher = buildMatcher(clients);
 
     const built = rawTickets.map(t => {
-      const contactName = t.contact ? t.contact.name : null;
+      const contactName = contactMap.get(t.contactId) || null;
       const { cliente, pseudoGrupo } = matcher.bestMatch(contactName);
 
       let clienteNome, grupo, situacao;
@@ -1357,7 +1399,7 @@ async function loadAllData(){
         nota: notaPorTicket.has(t.id) ? notaPorTicket.get(t.id) : null,
         csat: csat,
         horas: (horas !== null && horas >= 0) ? horas : null,
-        depto: (t.department && t.department.name) ? t.department.name : 'N/D'
+        depto: deptMap.get(t.departmentId) || 'N/D'
       };
     });
 

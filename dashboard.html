@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel de Atendimento por Cliente - Lucralize</title>
+<script src="token_config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa3b2; --accent:#5b8cff; --accent2:#7ee0c0;
+    --good:#4caf80; --warn:#e0b04c; --bad:#e0645c; --inactive:#5b6270;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:28px 32px 60px;
+  }
+  h1{font-size:22px; margin:0 0 4px; font-weight:600; letter-spacing:.2px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .note{background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; font-size:12.5px; color:var(--muted); margin-bottom:22px; line-height:1.5;}
+  .note b{color:var(--text);}
+
+  .config-panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:20px 24px; margin-bottom:24px;
+  }
+  .config-panel h2{font-size:15px; margin:0 0 4px;}
+  .config-panel .sub{font-size:12px; color:var(--muted); margin-bottom:16px;}
+  .config-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px;}
+  .config-field{flex:1; min-width:220px;}
+  .config-field label{display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--muted);}
+  .config-field input{
+    width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:9px 12px; border-radius:8px; font-size:13px; outline:none;
+  }
+  .config-field input:focus{border-color:var(--accent);}
+  .config-actions{display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--accent); color:#fff; border:none; padding:11px 22px;
+    border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn-primary:hover{opacity:0.9;}
+  .btn-primary:disabled{opacity:0.5; cursor:not-allowed;}
+  .btn-secondary{
+    background:transparent; color:var(--accent); border:1px solid var(--accent); padding:10px 18px;
+    border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .btn-secondary:hover{background:rgba(91,140,255,.1);}
+  #loadStatus{font-size:12.5px; color:var(--muted); white-space:pre-line; line-height:1.6;}
+  #loadStatus .err{color:var(--bad);}
+  #loadStatus .ok{color:var(--good);}
+
+  .progress-wrap{
+    height:8px; border-radius:4px; background:var(--panel2); overflow:hidden; margin-top:14px; display:none;
+  }
+  .progress-wrap.show{display:block;}
+  .progress-bar{
+    height:100%; width:30%; border-radius:4px;
+    background:linear-gradient(90deg, var(--accent), var(--accent2));
+    background-size:200% 100%;
+    animation: progressSlide 1.4s ease-in-out infinite;
+  }
+  @keyframes progressSlide{
+    0%{ background-position: 0% 0; margin-left:0%; }
+    50%{ margin-left:65%; }
+    100%{ margin-left:0%; }
+  }
+  #statusLine{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  #statusLine.ok{color:var(--good);}
+  #statusLine.err{color:var(--bad);}
+  .npsq-select{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:8px; font-size:13px; outline:none; min-width:260px;
+  }
+  #dashboardArea{display:none;}
+  #dashboardArea.show{display:block;}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;}
+  input[type=text]{
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:9px 14px; border-radius:8px; font-size:13px; width:260px; outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent);}
+  .chip{
+    background:var(--panel); border:1px solid var(--border); color:var(--muted);
+    padding:8px 14px; border-radius:20px; font-size:12.5px; cursor:pointer; user-select:none;
+    transition:.15s;
+  }
+  .chip.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .chip:hover{border-color:var(--accent);}
+  .spacer{flex:1;}
+  .count-badge{font-size:12px; color:var(--muted);}
+
+  /* month picker */
+  .month-picker{position:relative;}
+  .month-btn{
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:9px 14px; border-radius:8px; font-size:13px; cursor:pointer; user-select:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .month-btn:hover{border-color:var(--accent);}
+  .month-btn .arrow{color:var(--muted); font-size:10px;}
+  .month-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; background:var(--panel2);
+    border:1px solid var(--border); border-radius:10px; padding:10px; z-index:20;
+    display:none; min-width:230px; box-shadow:0 12px 30px rgba(0,0,0,.4);
+  }
+  .month-dropdown.open{display:block;}
+  .month-dropdown .actions{display:flex; gap:8px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);}
+  .month-dropdown .actions a{font-size:11.5px; color:var(--accent); cursor:pointer; text-decoration:none;}
+  .month-option{
+    display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:13px;
+  }
+  .month-option:hover{background:var(--panel);}
+  .month-option input{margin:0; cursor:pointer;}
+
+  .kpis{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px;}
+  .kpi{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px;}
+  .kpi .val{font-size:22px; font-weight:700;}
+  .kpi .lbl{font-size:11.5px; color:var(--muted); margin-top:2px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{
+    text-align:left; padding:10px 12px; color:var(--muted); font-weight:600;
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.4px;
+    border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  .th-inner{display:flex; align-items:center; gap:6px; cursor:pointer;}
+  .th-inner:hover{color:var(--text);}
+  .sort-arrows{display:flex; flex-direction:column; line-height:0; font-size:8px; color:var(--border); gap:1px;}
+  .sort-arrows span{display:block;}
+  .sort-arrows span.active{color:var(--accent);}
+  .filter-icon{
+    display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px;
+    border-radius:4px; color:var(--muted); font-size:11px; cursor:pointer; flex-shrink:0;
+  }
+  .filter-icon:hover{background:var(--panel2); color:var(--text);}
+  .filter-icon.active-filter{color:var(--accent);}
+
+  .col-popover{
+    position:fixed; background:var(--panel2); border:1px solid var(--border); border-radius:10px;
+    padding:12px; z-index:50; min-width:200px; box-shadow:0 12px 30px rgba(0,0,0,.45); display:none;
+  }
+  .col-popover.open{display:block;}
+  .col-popover .actions{display:flex; gap:8px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);}
+  .col-popover .actions a{font-size:11.5px; color:var(--accent); cursor:pointer; text-decoration:none;}
+  .col-popover .range-row{display:flex; align-items:center; gap:8px; font-size:12.5px;}
+  .col-popover .range-row input{
+    width:80px; background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:6px; font-size:12.5px; outline:none;
+  }
+  .col-popover .range-row input:focus{border-color:var(--accent);}
+  .col-popover .range-hint{font-size:11px; color:var(--muted); margin-top:6px;}
+
+  tbody tr.row-client{
+    border-bottom:1px solid var(--border); transition:.1s;
+  }
+  tbody tr.row-client:hover{background:var(--panel2);}
+  tbody tr.row-client td{padding:11px 12px; vertical-align:middle;}
+  tbody tr.section-divider td{
+    padding:16px 12px 8px; font-size:12px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.6px; font-weight:700; border-bottom:none;
+  }
+
+  .name-cell{display:flex; align-items:center; gap:8px; font-weight:600;}
+  .expand-icon{
+    width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:4px; background:var(--panel2); color:var(--muted); font-size:11px; flex-shrink:0;
+    transition:.15s;
+  }
+  .grupo-row .expand-icon{cursor:pointer;}
+  .grupo-row .expand-icon:hover{background:var(--accent); color:#fff;}
+  .no-expand{visibility:hidden;}
+
+  .badge{
+    display:inline-block; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:600;
+  }
+  .badge-ativo{background:rgba(76,175,128,.15); color:var(--good);}
+  .badge-inativo{background:rgba(91,98,112,.2); color:var(--inactive);}
+  .badge-suspenso{background:rgba(224,176,76,.15); color:var(--warn);}
+  .badge-cancelamento{background:rgba(224,100,92,.15); color:var(--bad);}
+  .badge-grupo{background:rgba(91,140,255,.15); color:var(--accent); margin-left:6px;}
+
+  .num{font-variant-numeric:tabular-nums;}
+  .muted{color:var(--muted);}
+  .score-good{color:var(--good); font-weight:700;}
+  .score-mid{color:var(--warn); font-weight:700;}
+  .score-bad{color:var(--bad); font-weight:700;}
+
+  .member-row td{
+    padding:8px 12px 8px 44px; border-bottom:1px solid var(--border); background:#141720;
+    font-size:12.5px;
+  }
+  .member-row .name-cell{font-weight:500; color:var(--muted);}
+  .hidden{display:none !important;}
+
+  .nps-cell{display:flex; align-items:center; gap:6px; justify-content:flex-start;}
+  .nps-toggle{
+    width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:4px; background:var(--panel2); color:var(--muted); font-size:10px; cursor:pointer; flex-shrink:0;
+  }
+  .nps-toggle:hover{background:var(--accent); color:#fff;}
+  .nps-breakdown-row td{
+    padding:10px 16px 14px 44px; background:#141720; border-bottom:1px solid var(--border);
+  }
+  .nps-bars{display:flex; gap:18px; flex-wrap:wrap; font-size:12px;}
+  .nps-bar-item{display:flex; align-items:center; gap:8px;}
+  .nps-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .dot-prom{background:var(--good);}
+  .dot-neutro{background:var(--warn);}
+  .dot-detrator{background:var(--bad);}
+  .nps-score-line{margin-top:8px; font-size:11.5px; color:var(--muted);}
+
+  ::-webkit-scrollbar{height:8px; width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
+
+  footer{margin-top:24px; font-size:11.5px; color:var(--muted); text-align:center;}
+</style>
+</head>
+<body>
+
+<h1>Painel de Atendimento por Cliente</h1>
+<div class="subtitle">Cruzamento ao vivo: chamados + NPS (Digisac) e cadastro de clientes (SharePoint)</div>
+
+<div class="config-panel">
+  <h2>Carregar dados</h2>
+  <div class="sub">O token real do Digisac fica cifrado no código, só é decifrado no seu navegador com a senha certa — nunca fica salvo em texto puro em lugar nenhum.</div>
+
+  <div class="config-row">
+    <div class="config-field">
+      <label for="cfgBaseUrl">URL base do Digisac</label>
+      <input type="text" id="cfgBaseUrl" placeholder="https://lucralizecontabil.digisac.me">
+    </div>
+    <div class="config-field">
+      <label for="cfgPassword">Senha de acesso</label>
+      <input type="password" id="cfgPassword" placeholder="Senha combinada com a diretoria">
+    </div>
+  </div>
+  <div class="config-row">
+    <div class="config-field">
+      <label for="cfgFrom">Buscar chamados a partir de</label>
+      <input type="date" id="cfgFrom">
+    </div>
+    <div class="config-field">
+      <label for="cfgTo">Até</label>
+      <input type="date" id="cfgTo">
+    </div>
+  </div>
+
+  <div class="config-actions">
+    <button class="btn-primary" id="loadBtn">Carregar dashboard</button>
+    <button class="btn-secondary" id="forgetTokenBtn">Esquecer URL salva</button>
+    <span id="npsQuestionWrap" style="display:none; align-items:center; gap:8px;">
+      <label style="font-size:12.5px; color:var(--muted);">Pergunta usada como NPS:</label>
+      <select class="npsq-select" id="npsQuestionSelect"></select>
+    </span>
+  </div>
+
+  <div class="config-actions">
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+      <input type="checkbox" id="liveModeChk" style="cursor:pointer;">
+      <span>Modo ao vivo — mostrar sempre os últimos 6 meses e atualizar sozinho (a cada 15 min)</span>
+    </label>
+    <button class="btn-secondary" id="stopLiveBtn" style="display:none;">Parar atualização automática</button>
+    <span id="liveStatus" style="font-size:12px; color:var(--muted);"></span>
+  </div>
+
+  <div id="loadStatus" style="margin-top:14px;">
+    <div class="progress-wrap" id="progressWrap"><div class="progress-bar"></div></div>
+    <div id="statusLine"></div>
+  </div>
+</div>
+
+<div id="dashboardArea">
+
+<div class="note">
+  <b>Como ler este painel:</b> "NPS" é a nota que o próprio cliente deu quando respondeu à avaliação (a maioria não responde) — clique na setinha ao lado da nota pra ver quantas notas foram promotoras (9-10), neutras (7-8) e detratoras (0-6). "CSAT interno" é uma <b>estimativa</b> que calculei a partir dos tempos de espera e de resolução de cada chamado (1 a 5), útil como proxy quando não há nota real. Empresas do mesmo <span class="badge badge-grupo">grupo</span> aparecem juntas, em ordem alfabética — clique na seta pra abrir e ver cada empresa separada. Cada coluna filtrável tem um ícone <b>⏷</b> no cabeçalho — clique para filtrar por situação (checkboxes) ou por faixa de valor mínimo/máximo (chamados, NPS, CSAT, horas, dias entre chamados, dia do mês). Pode combinar quantas colunas quiser ao mesmo tempo, além da busca por texto e do filtro de mês. "Dias entre chamados" é o intervalo médio entre um chamado e o próximo do mesmo cliente (cadência de contato); "Dia médio do mês" é a média dos dias do mês em que os chamados foram abertos. Alguns grupos têm empresas ativas e inativas misturadas — marque <b>"Ignorar empresas inativas dentro dos grupos"</b> pra que o total do grupo considere só as ativas. A coluna <b>"Departamento"</b> mostra o departamento atual de cada chamado — quando o cliente tem chamados em mais de um departamento, mostro o mais frequente e um "+N" ao lado. Contatos que não bateram com nenhum cadastro de cliente aparecem agrupados em <span class="badge badge-grupo">(Contato não identificado na base de clientes)</span> no fim da lista.
+</div>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="toolbar">
+  <input type="text" id="search" placeholder="Buscar cliente ou grupo...">
+
+  <div class="month-picker" id="monthPicker">
+    <div class="month-btn" id="monthBtn">
+      <span id="monthLabel">Todos os meses</span>
+      <span class="arrow">▾</span>
+    </div>
+    <div class="month-dropdown" id="monthDropdown">
+      <div class="actions">
+        <a id="monthAll">Marcar todos</a>
+        <a id="monthNone">Limpar</a>
+      </div>
+      <div id="monthList"></div>
+    </div>
+  </div>
+
+  <div class="chip" id="clearFiltersBtn">Limpar filtros de coluna</div>
+
+  <label class="chip" id="excludeInactiveLabel" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+    <input type="checkbox" id="excludeInactiveChk" style="margin:0; cursor:pointer;">
+    <span>Ignorar empresas inativas dentro dos grupos</span>
+  </label>
+
+  <label class="chip" id="onlyGroupsLabel" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+    <input type="checkbox" id="onlyGroupsChk" style="margin:0; cursor:pointer;">
+    <span>Mostrar só grupos</span>
+  </label>
+
+  <div class="spacer"></div>
+  <span class="count-badge" id="countBadge"></span>
+</div>
+
+<table>
+  <thead>
+    <tr id="headerRow"></tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<div class="col-popover" id="colPopover"></div>
+
+<footer>Painel gerado ao vivo a partir da API do Digisac (chamados + avaliações) e da lista "Controle de Clientes" do SharePoint. CSAT interno é uma estimativa heurística, não uma nota real do cliente.</footer>
+
+</div>
+
+<script>
+let TICKETS = [];
+let CLIENT_MAP = {};
+
+window.addEventListener('error', (e) => {
+  const line = document.getElementById('statusLine');
+  if(line){
+    line.textContent = '⚠️ Erro no script: ' + (e.message || 'erro desconhecido') + ' — o botão pode não funcionar até isso ser corrigido.';
+    line.className = 'err';
+  }
+});
+
+const SITU_ORDER = {'ATIVO':0, 'SUSPENSO':1, 'EM CANCELAMENTO':2, 'INATIVO':3, 'BAIXADA':4, null:5, '':5};
+const SITU_BADGE = {
+  'ATIVO':'badge-ativo', 'SUSPENSO':'badge-suspenso', 'EM CANCELAMENTO':'badge-cancelamento',
+  'INATIVO':'badge-inativo', 'BAIXADA':'badge-inativo'
+};
+const MONTH_NAMES = {
+  '01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho',
+  '07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'
+};
+
+// --- collect distinct months present in data, sorted chronologically ---
+let ALL_MONTHS = [];
+let selectedMonths = new Set();
+let ALL_DEPTOS = [];
+
+function recomputeMonthsAndDeptos(){
+  const monthsSet = new Set();
+  TICKETS.forEach(t => { if(t.mes) monthsSet.add(t.mes); });
+  ALL_MONTHS = Array.from(monthsSet).sort();
+  selectedMonths = new Set(ALL_MONTHS);
+
+  const deptoSet = new Set();
+  TICKETS.forEach(t => { deptoSet.add(t.depto || 'N/D'); });
+  ALL_DEPTOS = Array.from(deptoSet).sort((a,b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function monthLabel(m){
+  const [y, mm] = m.split('-');
+  return `${MONTH_NAMES[mm]}/${y}`;
+}
+
+// --- column definitions ---
+const COLUMNS = [
+  {key:'nome', label:'Cliente', sortable:true, width:'24%'},
+  {key:'situacao', label:'Situação', sortable:true},
+  {key:'chamados', label:'Chamados', sortable:true},
+  {key:'depto_dominante', label:'Departamento', sortable:true},
+  {key:'nota_media', label:'NPS', sortable:true},
+  {key:'qtd_avaliados', label:'Avaliados', sortable:true},
+  {key:'sem_nota', label:'Sem nota', sortable:true},
+  {key:'csat_interno_medio', label:'CSAT interno (1-5)', sortable:true},
+  {key:'horas_medias_resolucao', label:'Horas médias p/ resolução', sortable:true},
+  {key:'dias_entre_chamados', label:'Dias entre chamados', sortable:true},
+  {key:'dia_medio_mes', label:'Dia médio do mês', sortable:true},
+];
+
+let sortKey = 'nome';
+let sortDir = 1; // asc by default -> alphabetical
+const SITU_OPTIONS = [
+  {key:'ATIVO', label:'Ativo'},
+  {key:'SUSPENSO', label:'Suspenso'},
+  {key:'EM CANCELAMENTO', label:'Em cancelamento'},
+  {key:'INATIVO', label:'Inativo'},
+  {key:'BAIXADA', label:'Baixada'},
+  {key:'ND', label:'Não identificado'},
+];
+// numeric columns that get a min/max range filter
+const NUMERIC_FILTER_KEYS = ['chamados','nota_media','qtd_avaliados','sem_nota','csat_interno_medio','horas_medias_resolucao','dias_entre_chamados','dia_medio_mes'];
+
+const UNIDENTIFIED_GROUP = '(Contato não identificado na base de clientes)';
+let colFilters = {
+  situacao: new Set(SITU_OPTIONS.map(o => o.key)),
+  depto_dominante: new Set(),
+};
+NUMERIC_FILTER_KEYS.forEach(k => { colFilters[k] = {min:null, max:null}; });
+let groupExcludeInactive = false;
+let onlyGroups = false;
+let searchTerm = '';
+let expanded = new Set();
+let npsExpanded = new Set();
+let lastRows = [];
+
+function fmtNum(v, digits=1){
+  if(v === null || v === undefined) return '<span class="muted">—</span>';
+  return v.toFixed(digits);
+}
+function deptoCellHtml(d){
+  const dom = d.depto_dominante;
+  if(!dom) return '<span class="muted">—</span>';
+  const counts = d.deptoCounts || {};
+  const distintos = Object.keys(counts).length;
+  const domCount = counts[dom] || 0;
+  const extra = distintos > 1 ? ` <span class="muted">(+${distintos - 1})</span>` : '';
+  const title = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `${k}: ${v}`).join(' · ');
+  return `<span title="${title}">${dom}${extra}</span>`;
+}
+function scoreClass10(v){
+  if(v===null || v===undefined) return '';
+  if(v>=8) return 'score-good';
+  if(v>=6) return 'score-mid';
+  return 'score-bad';
+}
+function scoreClass5(v){
+  if(v===null || v===undefined) return '';
+  if(v>=4) return 'score-good';
+  if(v>=3) return 'score-mid';
+  return 'score-bad';
+}
+function hoursClass(v){
+  if(v===null || v===undefined) return '';
+  if(v<=24) return 'score-good';
+  if(v<=72) return 'score-mid';
+  return 'score-bad';
+}
+function badge(situ){
+  if(!situ) return '<span class="badge badge-inativo">N/D</span>';
+  const cls = SITU_BADGE[situ] || 'badge-inativo';
+  return `<span class="badge ${cls}">${situ}</span>`;
+}
+
+function avg(arr){
+  return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+}
+function avgGapDays(tss){
+  if(!tss || tss.length < 2) return null;
+  const sorted = [...tss].sort((a,b)=>a-b);
+  const gaps = [];
+  for(let i=1;i<sorted.length;i++){
+    gaps.push((sorted[i]-sorted[i-1])/86400);
+  }
+  return avg(gaps);
+}
+
+// --- core aggregation, recomputed whenever filters change ---
+function aggregate(){
+  const filteredTickets = TICKETS.filter(t => selectedMonths.has(t.mes) || !t.mes);
+
+  // per-entity buckets keyed by resolved "cliente" name (null => unidentified)
+  const entities = new Map();
+  function getBucket(key){
+    if(!entities.has(key)){
+      entities.set(key, {nome:key, situacao:null, grupo:null, chamados:0, notas:[], sem_nota:0, csats:[], horas:[], tss:[], dias:[], deptos:{}});
+    }
+    return entities.get(key);
+  }
+
+  filteredTickets.forEach(t => {
+    const key = t.cliente;
+    const b = getBucket(key);
+    b.situacao = t.situacao;
+    b.grupo = t.grupo;
+    b.chamados += 1;
+    if(t.nota !== null && t.nota !== undefined) b.notas.push(t.nota); else b.sem_nota += 1;
+    if(t.csat !== null && t.csat !== undefined) b.csats.push(t.csat);
+    if(t.horas !== null && t.horas !== undefined) b.horas.push(t.horas);
+    if(t.ts !== null && t.ts !== undefined) b.tss.push(t.ts);
+    if(t.dia !== null && t.dia !== undefined) b.dias.push(t.dia);
+    const dk = t.depto || 'N/D';
+    b.deptos[dk] = (b.deptos[dk] || 0) + 1;
+  });
+
+  function dominantDepto(deptos){
+    let best = null, bc = -1;
+    for(const k in deptos){ if(deptos[k] > bc){ bc = deptos[k]; best = k; } }
+    return best;
+  }
+
+  const summaries = [];
+  entities.forEach((b, key) => {
+    const promotores = b.notas.filter(n => n >= 9).length;
+    const neutros = b.notas.filter(n => n >= 7 && n < 9).length;
+    const detratores = b.notas.filter(n => n < 7).length;
+    summaries.push({
+      nome: key,
+      situacao: b.situacao,
+      grupo: b.grupo,
+      chamados: b.chamados,
+      nota_media: b.notas.length ? Math.round(avg(b.notas)*100)/100 : null,
+      qtd_avaliados: b.notas.length,
+      sem_nota: b.sem_nota,
+      promotores, neutros, detratores,
+      csat_interno_medio: b.csats.length ? Math.round(avg(b.csats)*100)/100 : null,
+      horas_medias_resolucao: b.horas.length ? Math.round(avg(b.horas)*10)/10 : null,
+      dias_entre_chamados: (() => { const g = avgGapDays(b.tss); return g !== null ? Math.round(g*10)/10 : null; })(),
+      dia_medio_mes: b.dias.length ? Math.round(avg(b.dias)*10)/10 : null,
+      deptoCounts: b.deptos,
+      depto_dominante: dominantDepto(b.deptos),
+    });
+  });
+
+  const standalone = summaries.filter(s => !s.grupo);
+  const grouped = summaries.filter(s => s.grupo);
+
+  const grupoMap = new Map();
+  grouped.forEach(s => {
+    if(!grupoMap.has(s.grupo)) grupoMap.set(s.grupo, []);
+    grupoMap.get(s.grupo).push(s);
+  });
+
+  const grupos = [];
+  grupoMap.forEach((members, gname) => {
+    const notas = [], csats = [], horas = [], tss = [], dias = [];
+    let chamados = 0, sem_nota = 0;
+    const situCount = {};
+    const deptos = {};
+    members.forEach(m => {
+      const sk = m.situacao || 'ND';
+      situCount[sk] = (situCount[sk]||0) + 1;
+    });
+    const isRealGroup = gname !== UNIDENTIFIED_GROUP;
+    // recompute notas/csats/horas/tss/dias/chamados/sem_nota from filteredTickets directly,
+    // optionally skipping tickets from member companies that are not ATIVO
+    filteredTickets.forEach(t => {
+      if(t.grupo !== gname) return;
+      if(groupExcludeInactive && isRealGroup && t.situacao !== 'ATIVO') return;
+      chamados += 1;
+      if(t.nota !== null && t.nota !== undefined) notas.push(t.nota); else sem_nota += 1;
+      if(t.csat !== null && t.csat !== undefined) csats.push(t.csat);
+      if(t.horas !== null && t.horas !== undefined) horas.push(t.horas);
+      if(t.ts !== null && t.ts !== undefined) tss.push(t.ts);
+      if(t.dia !== null && t.dia !== undefined) dias.push(t.dia);
+      const dk = t.depto || 'N/D';
+      deptos[dk] = (deptos[dk] || 0) + 1;
+    });
+    let situDom = null;
+    if(situCount['ATIVO']) situDom = 'ATIVO';
+    else {
+      let best=null,bc=-1;
+      for(const k in situCount){ if(situCount[k]>bc){bc=situCount[k]; best=k;} }
+      situDom = (best === 'ND') ? null : best;
+    }
+    const promotores = notas.filter(n => n >= 9).length;
+    const neutros = notas.filter(n => n >= 7 && n < 9).length;
+    const detratores = notas.filter(n => n < 7).length;
+    const membrosVisiveis = (groupExcludeInactive && isRealGroup)
+      ? members.filter(m => m.situacao === 'ATIVO')
+      : members;
+    grupos.push({
+      nome: gname,
+      situacao: situDom,
+      grupo: null,
+      isGroup: true,
+      chamados: chamados,
+      nota_media: notas.length ? Math.round(avg(notas)*100)/100 : null,
+      qtd_avaliados: notas.length,
+      sem_nota: sem_nota,
+      promotores, neutros, detratores,
+      csat_interno_medio: csats.length ? Math.round(avg(csats)*100)/100 : null,
+      horas_medias_resolucao: horas.length ? Math.round(avg(horas)*10)/10 : null,
+      dias_entre_chamados: (() => { const g = avgGapDays(tss); return g !== null ? Math.round(g*10)/10 : null; })(),
+      dia_medio_mes: dias.length ? Math.round(avg(dias)*10)/10 : null,
+      deptoCounts: deptos,
+      depto_dominante: dominantDepto(deptos),
+      membros: members.sort((a,b)=>a.nome.localeCompare(b.nome)),
+      membrosVisiveis: membrosVisiveis.sort((a,b)=>a.nome.localeCompare(b.nome)),
+      totalMembrosOriginal: members.length,
+    });
+  });
+
+  return {standalone, grupos};
+}
+
+function situKeyOf(situ){
+  return situ ? situ : 'ND';
+}
+function passesColumnFilters(d){
+  if(!colFilters.situacao.has(situKeyOf(d.situacao))) return false;
+  if(colFilters.depto_dominante.size < ALL_DEPTOS.length){
+    const counts = d.deptoCounts || {};
+    const hasMatch = Object.keys(counts).some(dk => colFilters.depto_dominante.has(dk));
+    if(!hasMatch) return false;
+  }
+  for(const key of NUMERIC_FILTER_KEYS){
+    const f = colFilters[key];
+    if(f.min === null && f.max === null) continue;
+    const v = d[key];
+    if(v === null || v === undefined){
+      // a row with no value never matches an active numeric filter
+      return false;
+    }
+    if(f.min !== null && v < f.min) return false;
+    if(f.max !== null && v > f.max) return false;
+  }
+  return true;
+}
+function passesSearch(name, membros){
+  if(!searchTerm) return true;
+  const t = searchTerm.toLowerCase();
+  if(name.toLowerCase().includes(t)) return true;
+  if(membros) return membros.some(m => m.nome.toLowerCase().includes(t));
+  return false;
+}
+
+function sortRows(rows){
+  rows.sort((a,b) => {
+    let av = a.data[sortKey], bv = b.data[sortKey];
+    if(sortKey === 'situacao'){
+      av = SITU_ORDER[av] ?? 5; bv = SITU_ORDER[bv] ?? 5;
+      return (av - bv) * sortDir;
+    }
+    if(av === null || av === undefined) av = (sortDir===1 ? Infinity : -Infinity);
+    if(bv === null || bv === undefined) bv = (sortDir===1 ? Infinity : -Infinity);
+    if(typeof av === 'string') return av.localeCompare(bv, 'pt-BR') * sortDir;
+    return (av - bv) * sortDir;
+  });
+  return rows;
+}
+
+function columnHasActiveFilter(key){
+  if(key === 'situacao') return colFilters.situacao.size < SITU_OPTIONS.length;
+  if(key === 'depto_dominante') return colFilters.depto_dominante.size < ALL_DEPTOS.length;
+  const f = colFilters[key];
+  return f && (f.min !== null || f.max !== null);
+}
+
+function renderHeader(){
+  const tr = document.getElementById('headerRow');
+  tr.innerHTML = '';
+  COLUMNS.forEach(col => {
+    const th = document.createElement('th');
+    if(col.width) th.style.width = col.width;
+    const isSorted = sortKey === col.key;
+    const isFilterable = col.key === 'situacao' || col.key === 'depto_dominante' || NUMERIC_FILTER_KEYS.includes(col.key);
+    const filterIcon = isFilterable
+      ? `<span class="filter-icon ${columnHasActiveFilter(col.key) ? 'active-filter' : ''}" data-filter-col="${col.key}">⏷</span>`
+      : '';
+    th.innerHTML = `
+      <div class="th-inner" data-sort="${col.key}">
+        <span>${col.label}</span>
+        <span class="sort-arrows">
+          <span class="arrow-up ${isSorted && sortDir===1 ? 'active':''}">▲</span>
+          <span class="arrow-down ${isSorted && sortDir===-1 ? 'active':''}">▼</span>
+        </span>
+      </div>
+      ${filterIcon}`;
+    if(isFilterable){
+      // wrap icon separately so its click doesn't trigger sort
+      th.style.position = 'relative';
+    }
+    tr.appendChild(th);
+  });
+  tr.querySelectorAll('.th-inner').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.sort;
+      if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = (key==='nome') ? 1 : -1; }
+      renderHeader();
+      render();
+    });
+  });
+  tr.querySelectorAll('[data-filter-col]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = el.dataset.filterCol;
+      openColumnPopover(el, key);
+    });
+  });
+}
+
+function render(){
+  const {standalone, grupos} = aggregate();
+
+  let rows = [];
+  standalone.forEach(c => rows.push({type:'client', data:c}));
+  grupos.forEach(g => rows.push({type:'grupo', data:g}));
+  lastRows = rows;
+
+  let filtered = rows.filter(r => {
+    const name = r.data.nome;
+    const membros = r.type === 'grupo' ? r.data.membros : null;
+    if(onlyGroups && r.type !== 'grupo') return false;
+    return passesColumnFilters(r.data) && passesSearch(name, membros);
+  });
+
+  filtered = sortRows(filtered);
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let currentSection = null;
+  filtered.forEach(r => {
+    const situ = r.data.situacao;
+    const sectionLabel = situ === 'ATIVO' ? 'Clientes ativos' : 'Inativos, suspensos e em cancelamento';
+    if(sectionLabel !== currentSection){
+      currentSection = sectionLabel;
+      const tr = document.createElement('tr');
+      tr.className = 'section-divider';
+      tr.innerHTML = `<td colspan="${COLUMNS.length}">${sectionLabel}</td>`;
+      tbody.appendChild(tr);
+    }
+    renderRow(r, tbody);
+  });
+
+  document.getElementById('countBadge').textContent = `${filtered.length} registro(s) exibido(s)`;
+  renderKpis(rows);
+  refreshFilterIcons();
+}
+
+function refreshFilterIcons(){
+  document.querySelectorAll('[data-filter-col]').forEach(el => {
+    const key = el.dataset.filterCol;
+    el.classList.toggle('active-filter', columnHasActiveFilter(key));
+  });
+}
+
+function npsBreakdownHtml(d, colspan){
+  const total = d.qtd_avaliados;
+  const pct = (n) => total ? Math.round(100*n/total) : 0;
+  const npsScore = total ? Math.round(((d.promotores - d.detratores) / total) * 100) : null;
+  return `
+    <tr class="nps-breakdown-row">
+      <td colspan="${colspan}">
+        <div class="nps-bars">
+          <div class="nps-bar-item"><span class="nps-dot dot-prom"></span> Promotoras (9-10): <b>${d.promotores}</b> (${pct(d.promotores)}%)</div>
+          <div class="nps-bar-item"><span class="nps-dot dot-neutro"></span> Neutras (7-8): <b>${d.neutros}</b> (${pct(d.neutros)}%)</div>
+          <div class="nps-bar-item"><span class="nps-dot dot-detrator"></span> Detratoras (0-6): <b>${d.detratores}</b> (${pct(d.detratores)}%)</div>
+        </div>
+        <div class="nps-score-line">${total ? `Score NPS (% promotoras − % detratoras) sobre ${total} avaliação(ões): <b>${npsScore}</b>` : 'Nenhuma avaliação registrada nesse período.'}</div>
+      </td>
+    </tr>`;
+}
+
+function renderRow(r, tbody){
+  const d = r.data;
+  const tr = document.createElement('tr');
+  tr.className = 'row-client' + (r.type === 'grupo' ? ' grupo-row' : '');
+  const isExpanded = expanded.has(d.nome);
+  const icon = r.type === 'grupo'
+    ? `<span class="expand-icon" data-toggle="${encodeURIComponent(d.nome)}">${isExpanded ? '−' : '+'}</span>`
+    : `<span class="expand-icon no-expand">+</span>`;
+  const grupoBadge = r.type === 'grupo'
+    ? `<span class="badge badge-grupo">GRUPO · ${d.membrosVisiveis.length} empresa(s)${d.membrosVisiveis.length !== d.totalMembrosOriginal ? ` (${d.totalMembrosOriginal - d.membrosVisiveis.length} inativa(s) ocultas)` : ''}</span>`
+    : '';
+  const npsKey = 'main:' + d.nome;
+  const npsIsOpen = npsExpanded.has(npsKey);
+
+  tr.innerHTML = `
+    <td><div class="name-cell">${icon}${d.nome}${grupoBadge}</div></td>
+    <td>${badge(d.situacao)}</td>
+    <td class="num">${d.chamados}</td>
+    <td>${deptoCellHtml(d)}</td>
+    <td class="num ${scoreClass10(d.nota_media)}">
+      <div class="nps-cell">
+        <span>${fmtNum(d.nota_media, 1)}</span>
+        <span class="nps-toggle" data-nps-toggle="${encodeURIComponent(npsKey)}">${npsIsOpen ? '−' : '▸'}</span>
+      </div>
+    </td>
+    <td class="num muted">${d.qtd_avaliados}</td>
+    <td class="num muted">${d.sem_nota}</td>
+    <td class="num ${scoreClass5(d.csat_interno_medio)}">${fmtNum(d.csat_interno_medio, 2)}</td>
+    <td class="num ${hoursClass(d.horas_medias_resolucao)}">${fmtNum(d.horas_medias_resolucao, 1)}</td>
+    <td class="num">${fmtNum(d.dias_entre_chamados, 1)}</td>
+    <td class="num">${d.dia_medio_mes !== null && d.dia_medio_mes !== undefined ? 'dia ' + Math.round(d.dia_medio_mes) : '<span class="muted">—</span>'}</td>
+  `;
+  tbody.appendChild(tr);
+
+  tr.querySelector('.nps-toggle').addEventListener('click', () => {
+    if(npsExpanded.has(npsKey)) npsExpanded.delete(npsKey); else npsExpanded.add(npsKey);
+    render();
+  });
+  if(npsIsOpen){
+    tbody.insertAdjacentHTML('beforeend', npsBreakdownHtml(d, COLUMNS.length));
+  }
+
+  if(r.type === 'grupo'){
+    const icnEl = tr.querySelector('.expand-icon');
+    icnEl.addEventListener('click', () => {
+      if(expanded.has(d.nome)) expanded.delete(d.nome); else expanded.add(d.nome);
+      render();
+    });
+    if(isExpanded){
+      d.membrosVisiveis.forEach(m => {
+        const mtr = document.createElement('tr');
+        mtr.className = 'member-row';
+        const mNpsKey = 'member:' + m.nome;
+        const mNpsOpen = npsExpanded.has(mNpsKey);
+        mtr.innerHTML = `
+          <td><div class="name-cell">↳ ${m.nome}</div></td>
+          <td>${badge(m.situacao)}</td>
+          <td class="num">${m.chamados}</td>
+          <td>${deptoCellHtml(m)}</td>
+          <td class="num ${scoreClass10(m.nota_media)}">
+            <div class="nps-cell">
+              <span>${fmtNum(m.nota_media,1)}</span>
+              <span class="nps-toggle" data-nps-toggle="${encodeURIComponent(mNpsKey)}">${mNpsOpen ? '−' : '▸'}</span>
+            </div>
+          </td>
+          <td class="num muted">${m.qtd_avaliados}</td>
+          <td class="num muted">${m.sem_nota}</td>
+          <td class="num ${scoreClass5(m.csat_interno_medio)}">${fmtNum(m.csat_interno_medio,2)}</td>
+          <td class="num ${hoursClass(m.horas_medias_resolucao)}">${fmtNum(m.horas_medias_resolucao,1)}</td>
+          <td class="num">${fmtNum(m.dias_entre_chamados, 1)}</td>
+          <td class="num">${m.dia_medio_mes !== null && m.dia_medio_mes !== undefined ? 'dia ' + Math.round(m.dia_medio_mes) : '<span class="muted">—</span>'}</td>
+        `;
+        tbody.appendChild(mtr);
+        mtr.querySelector('.nps-toggle').addEventListener('click', () => {
+          if(npsExpanded.has(mNpsKey)) npsExpanded.delete(mNpsKey); else npsExpanded.add(mNpsKey);
+          render();
+        });
+        if(mNpsOpen){
+          tbody.insertAdjacentHTML('beforeend', npsBreakdownHtml(m, COLUMNS.length));
+        }
+      });
+    }
+  }
+}
+
+function renderKpis(allRows){
+  const totalChamados = allRows.reduce((s,r) => s + r.data.chamados, 0);
+  const totalSemNota = allRows.reduce((s,r) => s + r.data.sem_nota, 0);
+  const csats = allRows.filter(r => r.data.csat_interno_medio !== null).map(r => r.data.csat_interno_medio);
+  const horas = allRows.filter(r => r.data.horas_medias_resolucao !== null).map(r => r.data.horas_medias_resolucao);
+  const csatAvg = avg(csats);
+  const horasAvg = avg(horas);
+
+  const kpis = [
+    {lbl:'Chamados no período', val: totalChamados.toLocaleString('pt-BR')},
+    {lbl:'Clientes/grupos com chamados', val: allRows.length},
+    {lbl:'Chamados sem nota', val: totalChamados ? `${totalSemNota.toLocaleString('pt-BR')} (${Math.round(100*totalSemNota/totalChamados)}%)` : '—'},
+    {lbl:'CSAT interno médio geral', val: csatAvg !== null ? csatAvg.toFixed(2) : '—'},
+    {lbl:'Horas médias p/ resolução', val: horasAvg !== null ? horasAvg.toFixed(1)+'h' : '—'},
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k => `
+    <div class="kpi"><div class="val">${k.val}</div><div class="lbl">${k.lbl}</div></div>
+  `).join('');
+}
+
+// --- month dropdown ---
+function updateMonthLabel(){
+  const lbl = document.getElementById('monthLabel');
+  if(selectedMonths.size === ALL_MONTHS.length) lbl.textContent = 'Todos os meses';
+  else if(selectedMonths.size === 0) lbl.textContent = 'Nenhum mês selecionado';
+  else if(selectedMonths.size === 1) lbl.textContent = monthLabel(Array.from(selectedMonths)[0]);
+  else lbl.textContent = `${selectedMonths.size} meses selecionados`;
+}
+
+function renderMonthList(){
+  const list = document.getElementById('monthList');
+  list.innerHTML = ALL_MONTHS.map(m => `
+    <label class="month-option">
+      <input type="checkbox" data-month="${m}" ${selectedMonths.has(m) ? 'checked' : ''}>
+      <span>${monthLabel(m)}</span>
+    </label>
+  `).join('');
+  list.querySelectorAll('input[data-month]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const m = cb.dataset.month;
+      if(cb.checked) selectedMonths.add(m); else selectedMonths.delete(m);
+      updateMonthLabel();
+      render();
+    });
+  });
+}
+
+document.getElementById('monthBtn').addEventListener('click', (e) => {
+  document.getElementById('monthDropdown').classList.toggle('open');
+  e.stopPropagation();
+});
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.month-dropdown.open').forEach(dd => {
+    const picker = dd.closest('.month-picker');
+    if(picker && !picker.contains(e.target)){
+      dd.classList.remove('open');
+    }
+  });
+});
+document.getElementById('monthAll').addEventListener('click', () => {
+  selectedMonths = new Set(ALL_MONTHS);
+  renderMonthList(); updateMonthLabel(); render();
+});
+document.getElementById('monthNone').addEventListener('click', () => {
+  selectedMonths = new Set();
+  renderMonthList(); updateMonthLabel(); render();
+});
+
+// --- generic column filter popover (situação = checkboxes, numeric cols = min/max range) ---
+const COL_LABELS = Object.fromEntries(COLUMNS.map(c => [c.key, c.label]));
+
+function computeNumericRange(key){
+  let vals = [];
+  lastRows.forEach(r => {
+    const v = r.data[key];
+    if(v !== null && v !== undefined) vals.push(v);
+  });
+  if(!vals.length) return {min:0, max:0};
+  return {min: Math.min(...vals), max: Math.max(...vals)};
+}
+
+function openColumnPopover(iconEl, key){
+  const pop = document.getElementById('colPopover');
+  const alreadyOpenForThis = pop.classList.contains('open') && pop.dataset.col === key;
+  pop.classList.remove('open');
+  if(alreadyOpenForThis){ return; }
+
+  pop.dataset.col = key;
+
+  if(key === 'situacao'){
+    pop.innerHTML = `
+      <div class="actions">
+        <a data-act="all">Marcar todos</a>
+        <a data-act="none">Limpar</a>
+      </div>
+      <div id="popSituList"></div>`;
+    const list = pop.querySelector('#popSituList');
+    list.innerHTML = SITU_OPTIONS.map(o => `
+      <label class="month-option">
+        <input type="checkbox" data-situ="${o.key}" ${colFilters.situacao.has(o.key) ? 'checked' : ''}>
+        <span>${o.label}</span>
+      </label>
+    `).join('');
+    list.querySelectorAll('input[data-situ]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const k = cb.dataset.situ;
+        if(cb.checked) colFilters.situacao.add(k); else colFilters.situacao.delete(k);
+        render();
+      });
+    });
+    pop.querySelector('[data-act="all"]').addEventListener('click', () => {
+      colFilters.situacao = new Set(SITU_OPTIONS.map(o => o.key));
+      render();
+      openColumnPopover(iconEl, key); // refresh checkboxes
+    });
+    pop.querySelector('[data-act="none"]').addEventListener('click', () => {
+      colFilters.situacao = new Set();
+      render();
+      openColumnPopover(iconEl, key);
+    });
+  } else if(key === 'depto_dominante'){
+    // count total chamados per department across current lastRows (month-filtered dataset)
+    const deptTotals = {};
+    ALL_DEPTOS.forEach(d => deptTotals[d] = 0);
+    lastRows.forEach(r => {
+      const counts = r.data.deptoCounts || {};
+      for(const dk in counts){
+        deptTotals[dk] = (deptTotals[dk] || 0) + counts[dk];
+      }
+    });
+    const deptosOrdenados = [...ALL_DEPTOS].sort((a,b) => deptTotals[b] - deptTotals[a]);
+    pop.innerHTML = `
+      <div class="actions">
+        <a data-act="all">Marcar todos</a>
+        <a data-act="none">Limpar</a>
+      </div>
+      <div id="popDeptoList" style="max-height:260px; overflow-y:auto;"></div>`;
+    const list = pop.querySelector('#popDeptoList');
+    list.innerHTML = deptosOrdenados.map(d => `
+      <label class="month-option">
+        <input type="checkbox" data-depto="${encodeURIComponent(d)}" ${colFilters.depto_dominante.has(d) ? 'checked' : ''}>
+        <span>${d} <span class="muted">(${deptTotals[d]})</span></span>
+      </label>
+    `).join('');
+    list.querySelectorAll('input[data-depto]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const k = decodeURIComponent(cb.dataset.depto);
+        if(cb.checked) colFilters.depto_dominante.add(k); else colFilters.depto_dominante.delete(k);
+        render();
+      });
+    });
+    pop.querySelector('[data-act="all"]').addEventListener('click', () => {
+      colFilters.depto_dominante = new Set(ALL_DEPTOS);
+      render();
+      openColumnPopover(iconEl, key);
+    });
+    pop.querySelector('[data-act="none"]').addEventListener('click', () => {
+      colFilters.depto_dominante = new Set();
+      render();
+      openColumnPopover(iconEl, key);
+    });
+  } else {
+    const range = computeNumericRange(key);
+    const f = colFilters[key];
+    pop.innerHTML = `
+      <div class="actions">
+        <a data-act="clear">Limpar</a>
+      </div>
+      <div class="range-row">
+        <input type="number" id="popMin" placeholder="mín" value="${f.min !== null ? f.min : ''}" step="any">
+        <span>até</span>
+        <input type="number" id="popMax" placeholder="máx" value="${f.max !== null ? f.max : ''}" step="any">
+      </div>
+      <div class="range-hint">Intervalo nos dados atuais: ${Number.isFinite(range.min) ? range.min : 0} a ${Number.isFinite(range.max) ? range.max : 0}</div>`;
+    const minInput = pop.querySelector('#popMin');
+    const maxInput = pop.querySelector('#popMax');
+    minInput.addEventListener('input', () => {
+      colFilters[key].min = minInput.value === '' ? null : parseFloat(minInput.value);
+      render();
+    });
+    maxInput.addEventListener('input', () => {
+      colFilters[key].max = maxInput.value === '' ? null : parseFloat(maxInput.value);
+      render();
+    });
+    pop.querySelector('[data-act="clear"]').addEventListener('click', () => {
+      colFilters[key] = {min:null, max:null};
+      render();
+      openColumnPopover(iconEl, key);
+    });
+  }
+
+  // position popover under the icon
+  const rect = iconEl.getBoundingClientRect();
+  pop.style.top = (rect.bottom + 6) + 'px';
+  let left = rect.left - 90;
+  if(left < 8) left = 8;
+  if(left + 240 > window.innerWidth) left = window.innerWidth - 248;
+  pop.style.left = left + 'px';
+  pop.classList.add('open');
+}
+
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('colPopover');
+  if(pop.classList.contains('open') && !pop.contains(e.target) && !e.target.closest('[data-filter-col]')){
+    pop.classList.remove('open');
+  }
+});
+
+document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+  colFilters.situacao = new Set(SITU_OPTIONS.map(o => o.key));
+  colFilters.depto_dominante = new Set(ALL_DEPTOS);
+  NUMERIC_FILTER_KEYS.forEach(k => { colFilters[k] = {min:null, max:null}; });
+  document.getElementById('colPopover').classList.remove('open');
+  renderHeader();
+  render();
+});
+
+document.getElementById('excludeInactiveChk').addEventListener('change', (e) => {
+  groupExcludeInactive = e.target.checked;
+  document.getElementById('excludeInactiveLabel').classList.toggle('active', groupExcludeInactive);
+  render();
+});
+
+document.getElementById('onlyGroupsChk').addEventListener('change', (e) => {
+  onlyGroups = e.target.checked;
+  document.getElementById('onlyGroupsLabel').classList.toggle('active', onlyGroups);
+  render();
+});
+
+document.getElementById('search').addEventListener('input', (e) => {
+  searchTerm = e.target.value;
+  render();
+});
+
+// =========================================================================
+// PIPELINE DE DADOS AO VIVO (SharePoint via MSAL/Graph + Digisac via token)
+// =========================================================================
+
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "5938636f-0ec2-4bd4-9f39-3557479e0b61",
+    authority: "https://login.microsoftonline.com/5173aa83-66e1-49f3-9128-f2251b43294d",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+
+// ---- token do Digisac cifrado (AES-256-GCM) ----
+// O valor de ENCRYPTED_TOKEN_BLOB vem do arquivo externo "token_config.js"
+// (carregado via <script src="token_config.js"> no <head>) — assim ele nunca é
+// sobrescrito quando este arquivo (dashboard_live.html) for atualizado.
+
+function b64ToBuf(b64){
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+async function deriveKey(password, saltBytes){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt: saltBytes, iterations: 150000, hash:'SHA-256' },
+    keyMaterial,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['decrypt']
+  );
+}
+async function decryptDigisacToken(password){
+  const blob = ENCRYPTED_TOKEN_BLOB;
+  if(!blob || blob.salt === 'COLE_AQUI' || blob.iv === 'COLE_AQUI' || blob.ct === 'COLE_AQUI'){
+    throw new Error('O arquivo token_config.js ainda não foi configurado com o bloco cifrado real. Gere o bloco com "gerador_token_cifrado.html" e cole em token_config.js.');
+  }
+  const salt = b64ToBuf(blob.salt);
+  const iv = b64ToBuf(blob.iv);
+  const key = await deriveKey(password, salt);
+  const ctBuf = b64ToBuf(blob.ct);
+  let plainBuf;
+  try{
+    plainBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ctBuf);
+  } catch(e){
+    throw new Error('Senha incorreta — não foi possível decifrar o token. Confira a senha e tente de novo.');
+  }
+  return new TextDecoder().decode(plainBuf);
+}
+
+const SITE_HOSTNAME = "lucralize.sharepoint.com";
+const LIST_NAME = "Controle de Clientes";
+const FIELD_TITLE = "Title";
+const FIELD_CNPJ = "CNPJ_x002f_CPF_x002f_CEI";
+const FIELD_SITUACAO = "Situa_x00e7__x00e3_o";
+const FIELD_GRUPO = "GrupoEmpresarial";
+
+function logStatus(msg, cls){
+  const line = document.getElementById('statusLine');
+  line.textContent = msg;
+  line.className = cls || '';
+  if(cls === 'err'){
+    document.getElementById('progressWrap').classList.remove('show');
+  }
+}
+function clearStatus(){
+  document.getElementById('statusLine').textContent = '';
+  document.getElementById('statusLine').className = '';
+  document.getElementById('progressWrap').classList.add('show');
+}
+function finishStatus(){
+  document.getElementById('progressWrap').classList.remove('show');
+}
+
+// ---- normalização/tokenização (mesma lógica usada no cruzamento offline) ----
+const STOPWORDS = new Set(['ltda','me','eireli','epp','sa','servicos','servico','de','da','do','das','dos','e','com','mei','individual','sociedade','simples','comercio','consultoria','tecnologia','solucoes','solucao']);
+
+function normStr(s){
+  if(!s) return '';
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function tokensOf(s){
+  return new Set(normStr(s).split(' ').filter(t => t.length > 2 && !STOPWORDS.has(t.toLowerCase())));
+}
+
+// ---- monta o "matcher" a partir do roster de clientes vindo do SharePoint ----
+function buildMatcher(clients){
+  const withTokens = clients.map(c => ({...c, _tokens: tokensOf(c.title)}));
+  const grupos = new Map();
+  withTokens.forEach(c => {
+    if(c.grupo){
+      if(!grupos.has(c.grupo)) grupos.set(c.grupo, []);
+      grupos.get(c.grupo).push(c);
+    }
+  });
+  const grupoTokens = new Map();
+  grupos.forEach((members, g) => grupoTokens.set(g, tokensOf(g)));
+
+  function bestMatch(name){
+    if(!name) return {cliente:null, score:0, pseudoGrupo:null};
+    const candidates = [name, ...name.split(/[|\-]/)];
+    let best = null, bestScore = 0;
+    for(const cand of candidates){
+      const ctoks = tokensOf(cand);
+      if(!ctoks.size) continue;
+      for(const c of withTokens){
+        if(!c._tokens.size) continue;
+        let inter = 0;
+        ctoks.forEach(t => { if(c._tokens.has(t)) inter++; });
+        if(!inter) continue;
+        const score = inter / Math.max(ctoks.size, c._tokens.size);
+        if(score > bestScore){ bestScore = score; best = c; }
+      }
+    }
+    if(best && bestScore >= 0.34) return {cliente: best, score: bestScore, pseudoGrupo: null};
+
+    let bestG = null, bestGScore = 0;
+    for(const cand of candidates){
+      const ctoks = tokensOf(cand);
+      if(!ctoks.size) continue;
+      grupoTokens.forEach((gtoks, g) => {
+        if(!gtoks.size) return;
+        let inter = 0;
+        ctoks.forEach(t => { if(gtoks.has(t)) inter++; });
+        if(!inter) return;
+        const score = inter / Math.max(ctoks.size, gtoks.size);
+        if(score > bestGScore){ bestGScore = score; bestG = g; }
+      });
+    }
+    if(bestG && bestGScore >= 0.4){
+      const members = grupos.get(bestG);
+      if(members.length === 1) return {cliente: members[0], score: bestGScore, pseudoGrupo: null};
+      return {cliente: null, score: bestGScore, pseudoGrupo: bestG};
+    }
+    return {cliente: best, score: bestScore, pseudoGrupo: null};
+  }
+
+  return { bestMatch, grupos };
+}
+
+// ---- CSAT interno heurístico (1-5) a partir das métricas reais do Digisac (em segundos) ----
+function csatInterno(waitingSec, totalSec, isOpen){
+  if(isOpen) return null;
+  let score = 5.0;
+  const e1h = (waitingSec || 0) / 3600;
+  const resH = (totalSec || 0) / 3600;
+  if(e1h > 24) score -= 2;
+  else if(e1h > 8) score -= 1.3;
+  else if(e1h > 2) score -= 0.6;
+  else if(e1h > 0.5) score -= 0.2;
+  if(resH > 120) score -= 1.5;
+  else if(resH > 48) score -= 1.0;
+  else if(resH > 24) score -= 0.5;
+  else if(resH > 8) score -= 0.2;
+  return Math.max(1, Math.min(5, Math.round(score * 100) / 100));
+}
+
+// ---- Graph (SharePoint) ----
+async function graphGet(token, path, extraHeaders){
+  const headers = { 'Authorization': `Bearer ${token}` };
+  if(extraHeaders) Object.assign(headers, extraHeaders);
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers });
+  if(!res.ok) throw new Error(`Graph API respondeu ${res.status} em ${path}`);
+  return res.json();
+}
+
+async function fetchClientRoster(graphToken){
+  const site = await graphGet(graphToken, `/sites/${SITE_HOSTNAME}`);
+  const siteId = site.id;
+  const listsResp = await graphGet(graphToken, `/sites/${siteId}/lists?$select=id,name,displayName`);
+  const list = listsResp.value.find(l => l.displayName === LIST_NAME || l.name === LIST_NAME);
+  if(!list) throw new Error(`Lista "${LIST_NAME}" não encontrada no site.`);
+
+  let clients = [];
+  let url = `/sites/${siteId}/lists/${list.id}/items?$expand=fields&$top=200`;
+  let guard = 0;
+  while(url && guard < 100){
+    guard++;
+    const resp = await graphGet(graphToken, url, { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+    (resp.value || []).forEach(item => {
+      const f = item.fields || {};
+      if(f[FIELD_TITLE]){
+        clients.push({
+          title: f[FIELD_TITLE],
+          cnpj: f[FIELD_CNPJ] || '',
+          situacao: (f[FIELD_SITUACAO] || '').toString().trim().toUpperCase(),
+          grupo: (f[FIELD_GRUPO] || '').toString().trim()
+        });
+      }
+    });
+    if(resp['@odata.nextLink']){
+      url = resp['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '');
+    } else {
+      url = null;
+    }
+  }
+  return clients;
+}
+
+// ---- Digisac ----
+async function digisacGet(baseUrl, token, path){
+  const res = await fetch(`${baseUrl}${path}`, { headers: { 'Authorization': `Bearer ${token}` } });
+  if(!res.ok) throw new Error(`Digisac respondeu ${res.status} em ${path}`);
+  return res.json();
+}
+
+// NOTA: descobrimos por teste manual que os parâmetros soltos "startPeriod/endPeriod"
+// (chamados) e "from/to" (avaliações) são IGNORADOS pela API — ela devolve dados
+// antigos (de 2022) mesmo assim. O filtro que realmente funciona é via "query"
+// com "where.<campo>.$gte/$lte". Por isso não usamos mais "include" no query de
+// chamados (parecia interferir no filtro também) — buscamos departamentos e
+// contatos à parte e cruzamos localmente.
+
+async function fetchAllTickets(baseUrl, token, fromISO, toISO){
+  let all = [];
+  let page = 1;
+  const perPage = 100;
+  while(true){
+    const query = {
+      where: { startedAt: { '$gte': fromISO, '$lte': toISO } },
+      page,
+      perPage
+    };
+    const path = `/api/v1/tickets?query=${encodeURIComponent(JSON.stringify(query))}`;
+    const resp = await digisacGet(baseUrl, token, path);
+    const data = resp.data || [];
+    all = all.concat(data);
+    logStatus(`Chamados: ${all.length} carregados (página ${page})...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 200){
+      logStatus('⚠️ Parando por segurança: mais de 20.000 chamados retornados — confira o período pedido.', 'err');
+      break;
+    }
+  }
+  return all;
+}
+
+async function fetchAllAnswers(baseUrl, token, fromISO, toISO){
+  let all = [];
+  let page = 1;
+  const perPage = 100;
+  while(true){
+    const query = {
+      where: { createdAt: { '$gte': fromISO, '$lte': toISO } },
+      page,
+      perPage
+    };
+    const path = `/api/v1/answers?query=${encodeURIComponent(JSON.stringify(query))}`;
+    const resp = await digisacGet(baseUrl, token, path);
+    const data = resp.data || [];
+    all = all.concat(data);
+    logStatus(`Avaliações: ${all.length} carregadas (página ${page})...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 200){
+      logStatus('⚠️ Parando por segurança: mais de 20.000 avaliações retornadas — confira o período pedido.', 'err');
+      break;
+    }
+  }
+  return all;
+}
+
+async function fetchQuestions(baseUrl, token){
+  const resp = await digisacGet(baseUrl, token, `/api/v1/questions?perPage=100`);
+  return resp.data || [];
+}
+
+async function fetchDepartmentMap(baseUrl, token){
+  const map = new Map();
+  let page = 1;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/departments?perPage=100&page=${page}`);
+    const data = resp.data || [];
+    data.forEach(d => map.set(d.id, d.name));
+    if(data.length < 100) break;
+    page++;
+    if(page > 20) break;
+  }
+  return map;
+}
+
+async function fetchContactMap(baseUrl, token){
+  const map = new Map();
+  let page = 1;
+  const perPage = 200;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/contacts?perPage=${perPage}&page=${page}`);
+    const data = resp.data || [];
+    data.forEach(c => map.set(c.id, c.name));
+    logStatus(`Contatos: ${map.size} carregados (página ${page})...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 500) break;
+  }
+  return map;
+}
+
+// ---- orquestração principal ----
+let graphAccessToken = null;
+let msalAccount = null;
+let liveModeInterval = null;
+const LIVE_REFRESH_MS = 15 * 60 * 1000; // 15 minutos
+
+async function loadAllData(isAuto){
+  const btn = document.getElementById('loadBtn');
+  btn.disabled = true;
+  clearStatus();
+
+  let baseUrl = document.getElementById('cfgBaseUrl').value.trim().replace(/\/+$/, '');
+  if(baseUrl && !/^https?:\/\//i.test(baseUrl)){
+    baseUrl = 'https://' + baseUrl;
+  }
+  const password = document.getElementById('cfgPassword').value;
+  const liveMode = document.getElementById('liveModeChk').checked;
+
+  if(!baseUrl || !password){
+    logStatus('Preencha a URL base e a senha de acesso.', 'err');
+    btn.disabled = false;
+    return;
+  }
+
+  localStorage.setItem('digisac_base_url', baseUrl);
+  localStorage.setItem('digisac_live_mode', liveMode ? '1' : '0');
+
+  let fromISO, toISO;
+  if(liveMode){
+    // janela rolante: sempre os últimos 6 meses a partir de agora
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    fromISO = sixMonthsAgo.toISOString();
+    toISO = now.toISOString();
+  } else {
+    const fromDate = document.getElementById('cfgFrom').value;
+    const toDate = document.getElementById('cfgTo').value;
+    fromISO = fromDate ? new Date(fromDate + 'T00:00:00').toISOString() : (() => { const d = new Date(); d.setMonth(d.getMonth()-6); return d.toISOString(); })();
+    toISO = toDate ? new Date(toDate + 'T23:59:59').toISOString() : new Date().toISOString();
+  }
+
+  try{
+    logStatus('Decifrando token de acesso...');
+    const token = await decryptDigisacToken(password);
+    logStatus('Senha correta.', 'ok');
+
+    logStatus('Autenticando com Microsoft...');
+    try{
+      if(msalAccount){
+        const result = await msalInstance.acquireTokenSilent({ scopes: ["Sites.Read.All","User.Read"], account: msalAccount });
+        graphAccessToken = result.accessToken;
+      } else {
+        throw new Error('sem conta em cache');
+      }
+    } catch(silentErr){
+      if(isAuto){
+        throw new Error('A sessão da Microsoft expirou e a atualização automática não pode abrir um popup de login sozinha. Clique em "Carregar dashboard" pra logar de novo.');
+      }
+      const result = await msalInstance.loginPopup({ scopes: ["Sites.Read.All","User.Read"] });
+      graphAccessToken = result.accessToken;
+      msalAccount = result.account;
+    }
+    logStatus('Login OK.', 'ok');
+
+    logStatus('Buscando cadastro de clientes no SharePoint...');
+    const clients = await fetchClientRoster(graphAccessToken);
+    logStatus(`${clients.length} clientes carregados do SharePoint.`, 'ok');
+
+    logStatus('Buscando perguntas de avaliação no Digisac...');
+    const questions = await fetchQuestions(baseUrl, token);
+    const sel = document.getElementById('npsQuestionSelect');
+    sel.innerHTML = questions.map(q => {
+      const label = q.title || q.name || q.text || q.id;
+      return `<option value="${q.id}">${label}</option>`;
+    }).join('');
+    document.getElementById('npsQuestionWrap').style.display = 'inline-flex';
+    // tenta auto-selecionar uma pergunta cujo nome mencione "nps"
+    const npsGuess = questions.find(q => /nps/i.test(q.title || q.name || q.text || ''));
+    if(npsGuess) sel.value = npsGuess.id;
+    const chosenQuestionId = sel.value;
+
+    logStatus('Buscando departamentos e contatos no Digisac...');
+    const deptMap = await fetchDepartmentMap(baseUrl, token);
+    const contactMap = await fetchContactMap(baseUrl, token);
+    logStatus(`${deptMap.size} departamentos e ${contactMap.size} contatos carregados.`, 'ok');
+
+    logStatus('Buscando chamados no Digisac (pode levar um tempinho)...');
+    const rawTickets = await fetchAllTickets(baseUrl, token, fromISO, toISO);
+    logStatus(`${rawTickets.length} chamados carregados.`, 'ok');
+
+    logStatus('Buscando avaliações no Digisac...');
+    const rawAnswers = await fetchAllAnswers(baseUrl, token, fromISO, toISO);
+    logStatus(`${rawAnswers.length} avaliações carregadas.`, 'ok');
+
+    // mapa ticketId -> nota (só da pergunta escolhida)
+    const notaPorTicket = new Map();
+    rawAnswers.forEach(a => {
+      if(chosenQuestionId && a.questionId !== chosenQuestionId) return;
+      const n = parseFloat(a.text);
+      if(!isNaN(n)) notaPorTicket.set(a.ticketId, n);
+    });
+
+    logStatus('Cruzando contatos com o cadastro de clientes...');
+    const matcher = buildMatcher(clients);
+
+    const built = rawTickets.map(t => {
+      const contactName = contactMap.get(t.contactId) || null;
+      const { cliente, pseudoGrupo } = matcher.bestMatch(contactName);
+
+      let clienteNome, grupo, situacao;
+      if(cliente){
+        clienteNome = cliente.title;
+        grupo = cliente.grupo || null;
+        situacao = cliente.situacao || null;
+      } else if(pseudoGrupo){
+        clienteNome = `${pseudoGrupo} (empresa não especificada)`;
+        grupo = pseudoGrupo;
+        situacao = null;
+      } else {
+        clienteNome = (contactName || '(sem nome de contato)').trim();
+        grupo = UNIDENTIFIED_GROUP;
+        situacao = null;
+      }
+
+      let mes = null, ts = null, dia = null;
+      if(t.startedAt){
+        const d = new Date(t.startedAt);
+        if(!isNaN(d)){
+          mes = d.toISOString().slice(0,7);
+          ts = d.getTime() / 1000;
+          dia = d.getDate();
+        }
+      }
+
+      const metrics = t.metrics || {};
+      const horas = (typeof metrics.ticketTime === 'number') ? metrics.ticketTime / 3600 : null;
+      const csat = csatInterno(metrics.waitingTime, metrics.ticketTime, t.isOpen);
+
+      return {
+        cliente: clienteNome,
+        grupo: grupo,
+        situacao: situacao,
+        mes, ts, dia,
+        nota: notaPorTicket.has(t.id) ? notaPorTicket.get(t.id) : null,
+        csat: csat,
+        horas: (horas !== null && horas >= 0) ? horas : null,
+        depto: deptMap.get(t.departmentId) || 'N/D'
+      };
+    });
+
+    TICKETS = built;
+    const now = new Date();
+    logStatus(`Pronto! ${TICKETS.length} chamados processados. (atualizado às ${now.toLocaleTimeString('pt-BR')})`, 'ok');
+    finishStatus();
+    initDashboardUI();
+
+    if(liveMode){
+      document.getElementById('liveStatus').textContent = `Modo ao vivo ativo — próxima atualização às ${new Date(Date.now() + LIVE_REFRESH_MS).toLocaleTimeString('pt-BR')}`;
+      document.getElementById('stopLiveBtn').style.display = 'inline-block';
+      if(liveModeInterval) clearInterval(liveModeInterval);
+      liveModeInterval = setInterval(() => loadAllData(true), LIVE_REFRESH_MS);
+    }
+
+  } catch(err){
+    logStatus('Erro: ' + err.message, 'err');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('loadBtn').addEventListener('click', () => loadAllData(false));
+document.getElementById('stopLiveBtn').addEventListener('click', () => {
+  if(liveModeInterval){ clearInterval(liveModeInterval); liveModeInterval = null; }
+  document.getElementById('liveModeChk').checked = false;
+  document.getElementById('cfgFrom').disabled = false;
+  document.getElementById('cfgTo').disabled = false;
+  document.getElementById('stopLiveBtn').style.display = 'none';
+  document.getElementById('liveStatus').textContent = 'Atualização automática parada.';
+});
+document.getElementById('liveModeChk').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  document.getElementById('cfgFrom').disabled = on;
+  document.getElementById('cfgTo').disabled = on;
+  if(!on && liveModeInterval){
+    clearInterval(liveModeInterval);
+    liveModeInterval = null;
+    document.getElementById('stopLiveBtn').style.display = 'none';
+    document.getElementById('liveStatus').textContent = '';
+  }
+});
+document.getElementById('forgetTokenBtn').addEventListener('click', () => {
+  localStorage.removeItem('digisac_base_url');
+  document.getElementById('cfgBaseUrl').value = '';
+  logStatus('URL esquecida.', 'ok');
+});
+
+// restaura a URL salva (localStorage) ao abrir a página — a senha nunca é salva
+(function restoreConfig(){
+  const savedUrl = localStorage.getItem('digisac_base_url');
+  if(savedUrl) document.getElementById('cfgBaseUrl').value = savedUrl;
+  const savedLive = localStorage.getItem('digisac_live_mode');
+  if(savedLive === '1'){
+    document.getElementById('liveModeChk').checked = true;
+    document.getElementById('cfgFrom').disabled = true;
+    document.getElementById('cfgTo').disabled = true;
+  }
+})();
+
+// init (called after live data finishes loading — see loadAllData())
+function initDashboardUI(){
+  recomputeMonthsAndDeptos();
+  colFilters.depto_dominante = new Set(ALL_DEPTOS);
+  renderMonthList();
+  updateMonthLabel();
+  renderHeader();
+  render();
+  document.getElementById('dashboardArea').classList.add('show');
+}
+</script>
+
+</body>
+</html>

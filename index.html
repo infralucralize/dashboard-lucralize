@@ -1076,7 +1076,7 @@ const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
 // bloco não pode ser revertido para o token original.
 // IMPORTANTE: cole o bloco gerado EXATAMENTE como veio (sem adicionar aspas ao redor) —
 // ele já é um objeto JavaScript válido, tipo {"salt":"...","iv":"...","ct":"..."}
-const ENCRYPTED_TOKEN_BLOB = {"salt":"qRKMSPO2fosAJi+69kvYWw==","iv":"Sm1sau+6ZN1jGMYO","ct":"QuO6rzcWfvuETelZudHWM5U578AU9BjCnkybpATxzDgjg9ydKzDIGq4OCLQRn5H25xKrFBxS3Ak="};
+const ENCRYPTED_TOKEN_BLOB = {"salt":"COLE_AQUI","iv":"COLE_AQUI","ct":"COLE_AQUI"};
 
 function b64ToBuf(b64){
   const binary = atob(b64);
@@ -1367,7 +1367,10 @@ async function loadAllData(){
   btn.disabled = true;
   clearStatus();
 
-  const baseUrl = document.getElementById('cfgBaseUrl').value.trim().replace(/\/+$/, '');
+  let baseUrl = document.getElementById('cfgBaseUrl').value.trim().replace(/\/+$/, '');
+  if(baseUrl && !/^https?:\/\//i.test(baseUrl)){
+    baseUrl = 'https://' + baseUrl;
+  }
   const password = document.getElementById('cfgPassword').value;
   const fromDate = document.getElementById('cfgFrom').value;
   const toDate = document.getElementById('cfgTo').value;

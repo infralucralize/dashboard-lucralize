@@ -320,6 +320,14 @@
 let TICKETS = [];
 let CLIENT_MAP = {};
 
+window.addEventListener('error', (e) => {
+  const line = document.getElementById('statusLine');
+  if(line){
+    line.textContent = '⚠️ Erro no script: ' + (e.message || 'erro desconhecido') + ' — o botão pode não funcionar até isso ser corrigido.';
+    line.className = 'err';
+  }
+});
+
 const SITU_ORDER = {'ATIVO':0, 'SUSPENSO':1, 'EM CANCELAMENTO':2, 'INATIVO':3, 'BAIXADA':4, null:5, '':5};
 const SITU_BADGE = {
   'ATIVO':'badge-ativo', 'SUSPENSO':'badge-suspenso', 'EM CANCELAMENTO':'badge-cancelamento',
@@ -1066,7 +1074,9 @@ const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
 // ---- token do Digisac cifrado (AES-256-GCM) ----
 // Gerado com a ferramenta "gerador_token_cifrado.html" — sem a senha certa, este
 // bloco não pode ser revertido para o token original.
-const ENCRYPTED_TOKEN_BLOB = "{"salt":"SsjbwYf2+SvHVh+6CCaZWQ==","iv":"/D0jsns0Qap4IiIQ","ct":"5vDL7Bs15kJ4nXWtx1q7Ldy/i+fnCs/DmfVh/IRZTENO7rMxsbJPLIm5ClpbcWM2jadT4Dfj1bM="}";
+// IMPORTANTE: cole o bloco gerado EXATAMENTE como veio (sem adicionar aspas ao redor) —
+// ele já é um objeto JavaScript válido, tipo {"salt":"...","iv":"...","ct":"..."}
+const ENCRYPTED_TOKEN_BLOB = {"salt":"qRKMSPO2fosAJi+69kvYWw==","iv":"Sm1sau+6ZN1jGMYO","ct":"QuO6rzcWfvuETelZudHWM5U578AU9BjCnkybpATxzDgjg9ydKzDIGq4OCLQRn5H25xKrFBxS3Ak="};
 
 function b64ToBuf(b64){
   const binary = atob(b64);
@@ -1086,7 +1096,7 @@ async function deriveKey(password, saltBytes){
   );
 }
 async function decryptDigisacToken(password){
-  const blob = JSON.parse(ENCRYPTED_TOKEN_BLOB);
+  const blob = ENCRYPTED_TOKEN_BLOB;
   const salt = b64ToBuf(blob.salt);
   const iv = b64ToBuf(blob.iv);
   const key = await deriveKey(password, salt);
@@ -1095,7 +1105,7 @@ async function decryptDigisacToken(password){
   try{
     plainBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ctBuf);
   } catch(e){
-    throw new Error('Senha incorreta.');
+    throw new Error('Senha incorreta — não foi possível decifrar o token. Confira a senha e tente de novo.');
   }
   return new TextDecoder().decode(plainBuf);
 }

@@ -1169,6 +1169,15 @@ function buildMatcher(clients){
   const grupoTokens = new Map();
   grupos.forEach((members, g) => grupoTokens.set(g, tokensOf(g)));
 
+  // normaliza as exceções manuais também (nem o nome do contato nem o da empresa
+  // precisam bater na grafia exata — maiúscula/minúscula e espaço extra não importam)
+  const overridesNorm = {};
+  if(typeof MANUAL_OVERRIDES !== 'undefined'){
+    for(const k in MANUAL_OVERRIDES){
+      overridesNorm[cleanField(k)] = cleanField(MANUAL_OVERRIDES[k]);
+    }
+  }
+
   function isSubset(small, big){
     if(!small.size) return false;
     for(const t of small){ if(!big.has(t)) return false; }
@@ -1178,8 +1187,9 @@ function buildMatcher(clients){
   function bestMatch(name){
     if(!name) return {cliente:null, score:0, pseudoGrupo:null};
 
-    if(typeof MANUAL_OVERRIDES !== 'undefined' && MANUAL_OVERRIDES[name]){
-      const forced = byTitle.get(MANUAL_OVERRIDES[name]);
+    const nameKey = cleanField(name);
+    if(overridesNorm[nameKey]){
+      const forced = byTitle.get(overridesNorm[nameKey]);
       if(forced) return {cliente: forced, score: 1, pseudoGrupo: null};
     }
 
@@ -1291,6 +1301,13 @@ async function graphGet(token, path, extraHeaders){
   return res.json();
 }
 
+// ---- normalização básica: sem distinção maiúsc/minúsc, sem espaços duplicados/nas pontas ----
+// usada em qualquer campo vindo do cadastro (empresa, grupo, situação) pra evitar que
+// diferenças de digitação (espaço a mais, maiúscula/minúscula) quebrem o cruzamento
+function cleanField(v){
+  return (v || '').toString().trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
 async function fetchClientRoster(graphToken){
   const site = await graphGet(graphToken, `/sites/${SITE_HOSTNAME}`);
   const siteId = site.id;
@@ -1308,10 +1325,10 @@ async function fetchClientRoster(graphToken){
       const f = item.fields || {};
       if(f[FIELD_TITLE]){
         clients.push({
-          title: f[FIELD_TITLE],
+          title: cleanField(f[FIELD_TITLE]),
           cnpj: f[FIELD_CNPJ] || '',
-          situacao: (f[FIELD_SITUACAO] || '').toString().trim().toUpperCase(),
-          grupo: (f[FIELD_GRUPO] || '').toString().trim()
+          situacao: cleanField(f[FIELD_SITUACAO]),
+          grupo: cleanField(f[FIELD_GRUPO])
         });
       }
     });

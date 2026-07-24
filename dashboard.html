@@ -460,7 +460,7 @@ function avgGapDays(tss){
 
 // --- core aggregation, recomputed whenever filters change ---
 function aggregate(){
-  const filteredTickets = TICKETS.filter(t => selectedMonths.has(t.mes) || !t.mes);
+  const filteredTickets = TICKETS.filter(t => (selectedMonths.has(t.mes) || !t.mes) && colFilters.depto_dominante.has(t.depto || 'N/D'));
 
   // per-entity buckets keyed by resolved "cliente" name (null => unidentified)
   const entities = new Map();
@@ -592,11 +592,6 @@ function situKeyOf(situ){
 }
 function passesColumnFilters(d){
   if(!colFilters.situacao.has(situKeyOf(d.situacao))) return false;
-  if(colFilters.depto_dominante.size < ALL_DEPTOS.length){
-    const counts = d.deptoCounts || {};
-    const hasMatch = Object.keys(counts).some(dk => colFilters.depto_dominante.has(dk));
-    if(!hasMatch) return false;
-  }
   for(const key of NUMERIC_FILTER_KEYS){
     const f = colFilters[key];
     if(f.min === null && f.max === null) continue;
@@ -951,14 +946,14 @@ function openColumnPopover(iconEl, key){
       openColumnPopover(iconEl, key);
     });
   } else if(key === 'depto_dominante'){
-    // count total chamados per department across current lastRows (month-filtered dataset)
+    // conta chamados por departamento considerando só o filtro de mês (não o próprio filtro de departamento),
+    // assim as contagens não desaparecem quando você desmarca uma opção
+    const monthFiltered = TICKETS.filter(t => selectedMonths.has(t.mes) || !t.mes);
     const deptTotals = {};
     ALL_DEPTOS.forEach(d => deptTotals[d] = 0);
-    lastRows.forEach(r => {
-      const counts = r.data.deptoCounts || {};
-      for(const dk in counts){
-        deptTotals[dk] = (deptTotals[dk] || 0) + counts[dk];
-      }
+    monthFiltered.forEach(t => {
+      const dk = t.depto || 'N/D';
+      deptTotals[dk] = (deptTotals[dk] || 0) + 1;
     });
     const deptosOrdenados = [...ALL_DEPTOS].sort((a,b) => deptTotals[b] - deptTotals[a]);
     pop.innerHTML = `

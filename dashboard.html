@@ -327,6 +327,7 @@
 <script>
 let TICKETS = [];
 let CLIENT_MAP = {};
+let ROSTER_BY_GRUPO = {}; // grupo -> [{title, situacao}] das empresas reais do cadastro
 
 window.addEventListener('error', (e) => {
   const line = document.getElementById('statusLine');
@@ -529,12 +530,7 @@ function aggregate(){
   grupoMap.forEach((members, gname) => {
     const notas = [], csats = [], horas = [], tss = [], dias = [];
     let chamados = 0, sem_nota = 0;
-    const situCount = {};
     const deptos = {};
-    members.forEach(m => {
-      const sk = m.situacao || 'ND';
-      situCount[sk] = (situCount[sk]||0) + 1;
-    });
     const isRealGroup = gname !== UNIDENTIFIED_GROUP;
     // recompute notas/csats/horas/tss/dias/chamados/sem_nota from filteredTickets directly,
     // optionally skipping tickets from member companies that are not ATIVO
@@ -550,11 +546,37 @@ function aggregate(){
       const dk = t.depto || 'N/D';
       deptos[dk] = (deptos[dk] || 0) + 1;
     });
+
+    // ---- monta a lista de membros a partir do CADASTRO REAL do grupo ----
+    // assim o grupo sempre mostra suas empresas de verdade, mesmo as sem chamados,
+    // e mesmo quando os chamados caíram no bucket "empresa não especificada"
+    let membrosFinais = members; // fallback: buckets de chamados (grupo não-real / sem roster)
+    if(isRealGroup && ROSTER_BY_GRUPO[gname]){
+      const bucketPorNome = new Map(members.map(m => [m.nome, m]));
+      const EMPTY = () => ({
+        chamados:0, nota_media:null, qtd_avaliados:0, sem_nota:0,
+        promotores:0, neutros:0, detratores:0,
+        csat_interno_medio:null, horas_medias_resolucao:null,
+        dias_entre_chamados:null, dia_medio_mes:null, deptoCounts:{}, depto_dominante:null
+      });
+      membrosFinais = ROSTER_BY_GRUPO[gname].map(emp => {
+        const bucket = bucketPorNome.get(emp.title);
+        if(bucket) return bucket;
+        return { nome: emp.title, situacao: emp.situacao, grupo: gname, ...EMPTY() };
+      });
+      // acrescenta o bucket de chamados ambíguos ("empresa não especificada"), se existir
+      const ambiguo = members.find(m => m.nome === `${gname} (empresa não especificada)`);
+      if(ambiguo) membrosFinais.push(ambiguo);
+    }
+    members = membrosFinais;
+    // situação dominante do grupo a partir dos membros reais
+    const situCountFinal = {};
+    members.forEach(m => { const sk = m.situacao || 'ND'; situCountFinal[sk] = (situCountFinal[sk]||0)+1; });
     let situDom = null;
-    if(situCount['ATIVO']) situDom = 'ATIVO';
+    if(situCountFinal['ATIVO']) situDom = 'ATIVO';
     else {
       let best=null,bc=-1;
-      for(const k in situCount){ if(situCount[k]>bc){bc=situCount[k]; best=k;} }
+      for(const k in situCountFinal){ if(situCountFinal[k]>bc){bc=situCountFinal[k]; best=k;} }
       situDom = (best === 'ND') ? null : best;
     }
     const promotores = notas.filter(n => n >= 9).length;
@@ -563,6 +585,8 @@ function aggregate(){
     const membrosVisiveis = (groupExcludeInactive && isRealGroup)
       ? members.filter(m => m.situacao === 'ATIVO')
       : members;
+    const nomeAmbiguo = `${gname} (empresa não especificada)`;
+    const empresasReais = membrosVisiveis.filter(m => m.nome !== nomeAmbiguo);
     grupos.push({
       nome: gname,
       situacao: situDom,
@@ -581,7 +605,8 @@ function aggregate(){
       depto_dominante: dominantDepto(deptos),
       membros: members.sort((a,b)=>a.nome.localeCompare(b.nome)),
       membrosVisiveis: membrosVisiveis.sort((a,b)=>a.nome.localeCompare(b.nome)),
-      totalMembrosOriginal: members.length,
+      totalMembrosOriginal: members.filter(m => m.nome !== nomeAmbiguo).length,
+      empresasReaisVisiveis: empresasReais.length,
     });
   });
 
@@ -750,7 +775,7 @@ function renderRow(r, tbody){
     ? `<span class="expand-icon" data-toggle="${encodeURIComponent(d.nome)}">${isExpanded ? '−' : '+'}</span>`
     : `<span class="expand-icon no-expand">+</span>`;
   const grupoBadge = r.type === 'grupo'
-    ? `<span class="badge badge-grupo">GRUPO · ${d.membrosVisiveis.length} empresa(s)${d.membrosVisiveis.length !== d.totalMembrosOriginal ? ` (${d.totalMembrosOriginal - d.membrosVisiveis.length} inativa(s) ocultas)` : ''}</span>`
+    ? `<span class="badge badge-grupo">GRUPO · ${d.empresasReaisVisiveis} empresa(s)${d.empresasReaisVisiveis !== d.totalMembrosOriginal ? ` (${d.totalMembrosOriginal - d.empresasReaisVisiveis} inativa(s) ocultas)` : ''}</span>`
     : '';
   const npsKey = 'main:' + d.nome;
   const npsIsOpen = npsExpanded.has(npsKey);
@@ -1541,6 +1566,15 @@ async function loadAllData(isAuto){
 
     logStatus('Cruzando contatos com o cadastro de clientes...');
     const matcher = buildMatcher(clients);
+
+    // monta o roster de empresas reais por grupo (independente de terem gerado chamados)
+    ROSTER_BY_GRUPO = {};
+    clients.forEach(c => {
+      if(c.grupo){
+        if(!ROSTER_BY_GRUPO[c.grupo]) ROSTER_BY_GRUPO[c.grupo] = [];
+        ROSTER_BY_GRUPO[c.grupo].push({ title: c.title, situacao: c.situacao });
+      }
+    });
 
     const built = rawTickets.map(t => {
       const contactName = contactMap.get(t.contactId) || null;

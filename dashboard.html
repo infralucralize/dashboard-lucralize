@@ -1194,6 +1194,26 @@ function buildMatcher(clients){
   const grupoTokens = new Map();
   grupos.forEach((members, g) => grupoTokens.set(g, tokensOf(g)));
 
+  // índice por CNPJ (só dígitos) -> empresa, pra casamento não-ambíguo quando o
+  // nome do contato no Digisac trouxer o CNPJ (padrão "Nome | Grupo | CNPJ")
+  const byCnpj = new Map();
+  withTokens.forEach(c => {
+    const digits = (c.cnpj || '').toString().replace(/\D/g, '');
+    if(digits.length >= 11) byCnpj.set(digits, c); // 11 = CPF, 14 = CNPJ
+  });
+
+  // extrai sequências de dígitos (11+) de um texto, tolerando pontuação no meio
+  function extractDocs(text){
+    const found = [];
+    // pega blocos que parecem CNPJ/CPF mesmo com . / - no meio
+    const matches = text.match(/[\d.\-\/]{11,}/g) || [];
+    matches.forEach(m => {
+      const d = m.replace(/\D/g, '');
+      if(d.length === 11 || d.length === 14) found.push(d);
+    });
+    return found;
+  }
+
   // normaliza as exceções manuais também (nem o nome do contato nem o da empresa
   // precisam bater na grafia exata — maiúscula/minúscula e espaço extra não importam)
   const overridesNorm = {};
@@ -1211,6 +1231,12 @@ function buildMatcher(clients){
 
   function bestMatch(name){
     if(!name) return {cliente:null, score:0, pseudoGrupo:null};
+
+    // ---- passo 0: CNPJ/CPF no nome do contato (prioridade máxima, não-ambíguo) ----
+    const docs = extractDocs(name);
+    for(const d of docs){
+      if(byCnpj.has(d)) return {cliente: byCnpj.get(d), score: 1, pseudoGrupo: null};
+    }
 
     const nameKey = cleanField(name);
     if(overridesNorm[nameKey]){

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Diagnóstico - Grupos no cadastro</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js"></script>
+<style>
+  :root{ --bg:#0f1115; --panel:#171a21; --border:#2a2f3a; --text:#e8eaed; --muted:#9aa3b2; --accent:#92dce5; --good:#4caf80; --bad:#f72642; }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); padding:32px; max-width:1000px; margin:0 auto; }
+  h1{font-size:20px; margin-bottom:6px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  label{display:block; font-size:13px; font-weight:600; margin:14px 0 6px;}
+  input{ width:100%; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:10px 14px; border-radius:8px; font-size:13px; outline:none; }
+  button{ margin-top:18px; background:var(--accent); color:#06272c; border:none; padding:11px 20px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+  pre{ padding:16px; border-radius:10px; border:1px solid var(--border); background:var(--panel); font-size:12px; white-space:pre-wrap; word-break:break-word; max-height:600px; overflow:auto; margin-top:20px; }
+  .ok{color:var(--good);} .bad{color:var(--bad);}
+</style>
+</head>
+<body>
+
+<h1>Diagnóstico — grupos no cadastro de clientes</h1>
+<div class="subtitle">Mostra exatamente o que a API do SharePoint retorna para um grupo específico, byte a byte, pra entendermos por que o agrupamento não está fechando.</div>
+
+<label for="grupoBusca">Nome do grupo para investigar</label>
+<input type="text" id="grupoBusca" value="GRUPO ESCALAR">
+
+<button id="runBtn">Investigar</button>
+
+<pre id="out" style="display:none;"></pre>
+
+<script>
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "5938636f-0ec2-4bd4-9f39-3557479e0b61",
+    authority: "https://login.microsoftonline.com/5173aa83-66e1-49f3-9128-f2251b43294d",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+
+const SITE_HOSTNAME = "lucralize.sharepoint.com";
+const LIST_NAME = "Controle de Clientes";
+const FIELD_TITLE = "Title";
+const FIELD_SITUACAO = "Situa_x00e7__x00e3_o";
+const FIELD_GRUPO = "GrupoEmpresarial";
+
+function show(txt){ const o = document.getElementById('out'); o.style.display='block'; o.innerHTML = txt; }
+
+async function graphGet(token, path, extra){
+  const headers = { 'Authorization': `Bearer ${token}` };
+  if(extra) Object.assign(headers, extra);
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers });
+  if(!res.ok) throw new Error(`Graph ${res.status} em ${path}`);
+  return res.json();
+}
+
+// mostra caracteres invisíveis / exatos
+function reveal(s){
+  if(s === null || s === undefined) return '(vazio/ausente)';
+  return JSON.stringify(s) + `   [${s.length} chars, códigos: ${[...s].map(c=>c.charCodeAt(0)).join(',')}]`;
+}
+
+document.getElementById('runBtn').addEventListener('click', async () => {
+  const alvo = document.getElementById('grupoBusca').value.trim();
+  show('Carregando...');
+  try{
+    const login = await msalInstance.loginPopup({ scopes: ["Sites.Read.All","User.Read"] });
+    const token = login.accessToken;
+
+    const site = await graphGet(token, `/sites/${SITE_HOSTNAME}`);
+    const lists = await graphGet(token, `/sites/${site.id}/lists?$select=id,name,displayName`);
+    const list = lists.value.find(l => l.displayName === LIST_NAME || l.name === LIST_NAME);
+    if(!list){ show('<span class="bad">Lista não encontrada</span>'); return; }
+
+    // puxa todos os itens
+    let all = [];
+    let url = `/sites/${site.id}/lists/${list.id}/items?$expand=fields&$top=200`;
+    let guard = 0;
+    while(url && guard < 100){
+      guard++;
+      const resp = await graphGet(token, url, { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+      all = all.concat(resp.value || []);
+      url = resp['@odata.nextLink'] ? resp['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+    }
+
+    const alvoNorm = alvo.toUpperCase().replace(/\s+/g,' ').trim();
+
+    // agrupa por valor bruto do campo grupo
+    const gruposBrutos = {};
+    all.forEach(it => {
+      const f = it.fields || {};
+      const g = f[FIELD_GRUPO];
+      if(g === null || g === undefined) return;
+      const key = g;
+      if(!gruposBrutos[key]) gruposBrutos[key] = [];
+      gruposBrutos[key].push(f[FIELD_TITLE]);
+    });
+
+    // acha os que "parecem" o alvo
+    let out = `TOTAL de clientes no cadastro: ${all.length}\n`;
+    out += `Nome do campo de grupo procurado: "${FIELD_GRUPO}"\n\n`;
+    out += `=== Empresas cujo grupo bate (após normalizar) com "${alvo}" ===\n\n`;
+
+    let encontrados = 0;
+    all.forEach(it => {
+      const f = it.fields || {};
+      const gRaw = f[FIELD_GRUPO];
+      const gNorm = (gRaw||'').toString().toUpperCase().replace(/\s+/g,' ').trim();
+      if(gNorm === alvoNorm){
+        encontrados++;
+        out += `• Empresa: ${reveal(f[FIELD_TITLE])}\n`;
+        out += `  Grupo (bruto):    ${reveal(gRaw)}\n`;
+        out += `  Situação (bruto): ${reveal(f[FIELD_SITUACAO])}\n\n`;
+      }
+    });
+    if(encontrados === 0){
+      out += `<span class="bad">Nenhuma empresa bateu com "${alvo}" após normalização.</span>\n\n`;
+    } else {
+      out += `<span class="ok">${encontrados} empresa(s) encontrada(s).</span>\n\n`;
+    }
+
+    // lista todos os valores brutos de grupo que CONTÊM a palavra do alvo, pra pegar variações
+    const palavra = alvoNorm.split(' ').filter(w=>w.length>2)[0] || alvoNorm;
+    out += `=== Todos os valores de "grupo" que contêm "${palavra}" (pra flagrar variações de grafia) ===\n\n`;
+    Object.keys(gruposBrutos).forEach(gk => {
+      if(gk.toUpperCase().includes(palavra)){
+        out += `${reveal(gk)}  →  ${gruposBrutos[gk].length} empresa(s): ${gruposBrutos[gk].join(', ')}\n`;
+      }
+    });
+
+    show(out);
+  } catch(err){
+    show('<span class="bad">Erro: ' + err.message + '</span>');
+  }
+});
+</script>
+
+</body>
+</html>

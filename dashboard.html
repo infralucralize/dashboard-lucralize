@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Painel de Atendimento por Cliente - Lucralize</title>
 <script src="token_config.js"></script>
+<script src="overrides_config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js"></script>
 <style>
   :root{
@@ -1138,7 +1139,7 @@ function finishStatus(){
 }
 
 // ---- normalização/tokenização (mesma lógica usada no cruzamento offline) ----
-const STOPWORDS = new Set(['ltda','me','eireli','epp','sa','servicos','servico','de','da','do','das','dos','e','com','mei','individual','sociedade','simples','comercio','consultoria','tecnologia','solucoes','solucao']);
+const STOPWORDS = new Set(['ltda','me','eireli','epp','sa','servicos','servico','de','da','do','das','dos','e','com','mei','individual','sociedade','simples','comercio','consultoria','tecnologia','solucoes','solucao','grupo']);
 
 function normStr(s){
   if(!s) return '';
@@ -1150,8 +1151,14 @@ function tokensOf(s){
 }
 
 // ---- monta o "matcher" a partir do roster de clientes vindo do SharePoint ----
+// ---- exceções manuais: nome de contato (como aparece no Digisac) -> empresa exata do cadastro ----
+// O valor de MANUAL_OVERRIDES vem do arquivo externo "overrides_config.js"
+// (carregado via <script src="overrides_config.js"> no <head>) — assim ele nunca é
+// sobrescrito quando este arquivo (dashboard_live.html) for atualizado.
+
 function buildMatcher(clients){
   const withTokens = clients.map(c => ({...c, _tokens: tokensOf(c.title)}));
+  const byTitle = new Map(withTokens.map(c => [c.title, c]));
   const grupos = new Map();
   withTokens.forEach(c => {
     if(c.grupo){
@@ -1162,9 +1169,58 @@ function buildMatcher(clients){
   const grupoTokens = new Map();
   grupos.forEach((members, g) => grupoTokens.set(g, tokensOf(g)));
 
+  function isSubset(small, big){
+    if(!small.size) return false;
+    for(const t of small){ if(!big.has(t)) return false; }
+    return true;
+  }
+
   function bestMatch(name){
     if(!name) return {cliente:null, score:0, pseudoGrupo:null};
+
+    if(typeof MANUAL_OVERRIDES !== 'undefined' && MANUAL_OVERRIDES[name]){
+      const forced = byTitle.get(MANUAL_OVERRIDES[name]);
+      if(forced) return {cliente: forced, score: 1, pseudoGrupo: null};
+    }
+
     const candidates = [name, ...name.split(/[|\-]/)];
+
+    // ---- passo 1: correspondência por CONTENÇÃO ----
+    // se todas as palavras-chave de uma empresa (ou grupo) aparecem dentro do nome do
+    // contato (ou vice-versa), mesmo com palavras extras ao redor, considera correspondência
+    // forte — MAS só se nenhuma outra empresa/grupo também bater (evita atribuir errado
+    // quando o nome é ambíguo/genérico demais)
+    const matchedCompanies = new Map(); // title -> client
+    const matchedGrupos = new Set();
+    for(const cand of candidates){
+      const ctoks = tokensOf(cand);
+      if(!ctoks.size) continue;
+      for(const c of withTokens){
+        if(!c._tokens.size) continue;
+        if(isSubset(c._tokens, ctoks) || isSubset(ctoks, c._tokens)){
+          matchedCompanies.set(c.title, c);
+        }
+      }
+      grupoTokens.forEach((gtoks, g) => {
+        if(!gtoks.size) return;
+        if(isSubset(gtoks, ctoks) || isSubset(ctoks, gtoks)){
+          matchedGrupos.add(g);
+        }
+      });
+    }
+    if(matchedCompanies.size === 1){
+      const only = [...matchedCompanies.values()][0];
+      return {cliente: only, score: 1, pseudoGrupo: null};
+    }
+    if(matchedGrupos.size === 1){
+      const g = [...matchedGrupos][0];
+      const members = grupos.get(g);
+      if(members.length === 1) return {cliente: members[0], score: 1, pseudoGrupo: null};
+      return {cliente: null, score: 1, pseudoGrupo: g};
+    }
+    // 0 correspondências, ou mais de uma empresa/grupo diferente batendo (ambíguo de verdade)
+    // -> cai pro método por similaridade abaixo
+
     let best = null, bestScore = 0;
     for(const cand of candidates){
       const ctoks = tokensOf(cand);

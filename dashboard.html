@@ -1216,6 +1216,11 @@ function buildMatcher(clients){
       const g = [...matchedGrupos][0];
       const members = grupos.get(g);
       if(members.length === 1) return {cliente: members[0], score: 1, pseudoGrupo: null};
+      // ambíguo entre as empresas do grupo: se só UMA delas estiver ativa, assume que é ela
+      // (é a que realmente está em operação) — só vira "empresa não especificada" quando
+      // houver mais de uma empresa ativa disputando
+      const ativos = members.filter(m => (m.situacao || '').toUpperCase() === 'ATIVO');
+      if(ativos.length === 1) return {cliente: ativos[0], score: 1, pseudoGrupo: null};
       return {cliente: null, score: 1, pseudoGrupo: g};
     }
     // 0 correspondências, ou mais de uma empresa/grupo diferente batendo (ambíguo de verdade)

@@ -1100,9 +1100,11 @@ const MSAL_CONFIG = {
 const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
 
 // ---- token do Digisac cifrado (AES-256-GCM) ----
-// O valor de ENCRYPTED_TOKEN_BLOB vem do arquivo externo "token_config.js"
+// O valor de DIGISAC_ACCOUNTS vem do arquivo externo "token_config.js"
 // (carregado via <script src="token_config.js"> no <head>) — assim ele nunca é
 // sobrescrito quando este arquivo (dashboard_live.html) for atualizado.
+// Cada conta tem seu próprio token cifrado E sua própria configuração de SharePoint
+// (site/lista/campos), tudo protegido pela mesma senha.
 
 function b64ToBuf(b64){
   const binary = atob(b64);
@@ -1121,10 +1123,29 @@ async function deriveKey(password, saltBytes){
     ['decrypt']
   );
 }
-async function decryptDigisacToken(password){
-  const blob = ENCRYPTED_TOKEN_BLOB;
+
+// normaliza uma URL do Digisac pra usar como chave de busca (só o domínio, minúsculo)
+function normalizeDigisacHost(url){
+  return url.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function findAccountConfig(baseUrl){
+  if(typeof DIGISAC_ACCOUNTS === 'undefined'){
+    throw new Error('O arquivo token_config.js não foi carregado ou está desatualizado (esperava DIGISAC_ACCOUNTS).');
+  }
+  const host = normalizeDigisacHost(baseUrl);
+  const cfg = DIGISAC_ACCOUNTS[host];
+  if(!cfg){
+    const disponiveis = Object.keys(DIGISAC_ACCOUNTS).join(', ') || '(nenhuma configurada)';
+    throw new Error(`Não existe configuração pra "${host}" em token_config.js. URLs configuradas: ${disponiveis}`);
+  }
+  return cfg;
+}
+
+async function decryptDigisacToken(password, accountCfg){
+  const blob = accountCfg.tokenBlob;
   if(!blob || blob.salt === 'COLE_AQUI' || blob.iv === 'COLE_AQUI' || blob.ct === 'COLE_AQUI'){
-    throw new Error('O arquivo token_config.js ainda não foi configurado com o bloco cifrado real. Gere o bloco com "gerador_token_cifrado.html" e cole em token_config.js.');
+    throw new Error('Essa conta ainda não tem o bloco cifrado configurado em token_config.js. Gere com "gerador_token_cifrado.html".');
   }
   const salt = b64ToBuf(blob.salt);
   const iv = b64ToBuf(blob.iv);
@@ -1138,13 +1159,6 @@ async function decryptDigisacToken(password){
   }
   return new TextDecoder().decode(plainBuf);
 }
-
-const SITE_HOSTNAME = "lucralize.sharepoint.com";
-const LIST_NAME = "Controle de Clientes";
-const FIELD_TITLE = "Title";
-const FIELD_CNPJ = "CNPJ_x002f_CPF_x002f_CEI";
-const FIELD_SITUACAO = "Situa_x00e7__x00e3_o";
-const FIELD_GRUPO = "GrupoEmpresarial";
 
 function logStatus(msg, cls){
   const line = document.getElementById('statusLine');
@@ -1359,12 +1373,19 @@ function cleanField(v){
   return (v || '').toString().trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
-async function fetchClientRoster(graphToken){
-  const site = await graphGet(graphToken, `/sites/${SITE_HOSTNAME}`);
+async function fetchClientRoster(graphToken, spCfg){
+  // spCfg: { hostname, sitePath (opcional), listName, fields: {title, cnpj, situacao, grupo} }
+  const sitePathSuffix = spCfg.sitePath ? `:/sites/${spCfg.sitePath}` : '';
+  const site = await graphGet(graphToken, `/sites/${spCfg.hostname}${sitePathSuffix}`);
   const siteId = site.id;
   const listsResp = await graphGet(graphToken, `/sites/${siteId}/lists?$select=id,name,displayName`);
-  const list = listsResp.value.find(l => l.displayName === LIST_NAME || l.name === LIST_NAME);
-  if(!list) throw new Error(`Lista "${LIST_NAME}" não encontrada no site.`);
+  const list = listsResp.value.find(l => l.displayName === spCfg.listName || l.name === spCfg.listName);
+  if(!list) throw new Error(`Lista "${spCfg.listName}" não encontrada no site.`);
+
+  const FIELD_TITLE = spCfg.fields.title;
+  const FIELD_CNPJ = spCfg.fields.cnpj;
+  const FIELD_SITUACAO = spCfg.fields.situacao;
+  const FIELD_GRUPO = spCfg.fields.grupo;
 
   let clients = [];
   let url = `/sites/${siteId}/lists/${list.id}/items?$expand=fields&$top=200`;
@@ -1534,8 +1555,11 @@ async function loadAllData(isAuto){
   }
 
   try{
+    logStatus('Identificando a conta pela URL...');
+    const accountCfg = findAccountConfig(baseUrl);
+
     logStatus('Decifrando token de acesso...');
-    const token = await decryptDigisacToken(password);
+    const token = await decryptDigisacToken(password, accountCfg);
     logStatus('Senha correta.', 'ok');
 
     logStatus('Autenticando com Microsoft...');
@@ -1557,7 +1581,7 @@ async function loadAllData(isAuto){
     logStatus('Login OK.', 'ok');
 
     logStatus('Buscando cadastro de clientes no SharePoint...');
-    const clients = await fetchClientRoster(graphAccessToken);
+    const clients = await fetchClientRoster(graphAccessToken, accountCfg.sharepoint);
     logStatus(`${clients.length} clientes carregados do SharePoint.`, 'ok');
 
     logStatus('Buscando perguntas de avaliação no Digisac...');
@@ -1715,4 +1739,3 @@ function initDashboardUI(){
 
 </body>
 </html>
-

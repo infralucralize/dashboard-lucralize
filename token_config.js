@@ -31,19 +31,18 @@ const DIGISAC_ACCOUNTS = {
 
   // Segunda conta (Lucralize Tech) — preencher depois de rodar o explorador de campos
   // "explorador_lista_sharepoint.html" pra descobrir os nomes exatos das colunas dessa lista.
-  "SUBSTITUA_PELA_URL_DO_DIGISAC_TECH": {
-    tokenBlob: {"salt":"COLE_AQUI","iv":"COLE_AQUI","ct":"COLE_AQUI"},
-    sharepoint: {
-      hostname: "lucralize.sharepoint.com",
-      sitePath: "LUCRALIZETECH",
-      listName: "Base de Usuários",
-      fields: {
-        title: "COLE_AQUI_O_NOME_DO_CAMPO",
-        cnpj: "COLE_AQUI_O_NOME_DO_CAMPO",
-        situacao: "COLE_AQUI_O_NOME_DO_CAMPO",
-        grupo: "COLE_AQUI_O_NOME_DO_CAMPO"
-      }
+"lucralizetech.digisac.biz": {
+  tokenBlob: {"salt":"DbgZIS+Ss+n7L38tR9k0MA==","iv":"4pXexCs3Y64NsvJz","ct":"JHVONimbLM2ooHs4LT9uWz+P7yytjbCfslox37y8cX5eYyyAWBUUKPdyfe5H4Xfs/5csX1tGKio="},
+  sharepoint: {
+    hostname: "lucralize.sharepoint.com",
+    sitePath: "LUCRALIZETECH",
+    listName: "Base de Usuários",
+    fields: {
+      title: "Title",
+      cnpj: "field_3",
+      situacao: "Situa_x00e7__x00e3_o",
+      grupo: "CAMPO_QUE_NAO_EXISTE"
     }
   }
-
+}
 };

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Diagnóstico - Ativo x Receptivo</title>
+<style>
+  :root{ --bg:#0f1115; --panel:#171a21; --border:#2a2f3a; --text:#e8eaed; --muted:#9aa3b2; --accent:#92dce5; --good:#4caf80; --bad:#f72642; }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); padding:32px; max-width:1100px; margin:0 auto; }
+  h1{font-size:20px; margin-bottom:6px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5;}
+  label{display:block; font-size:13px; font-weight:600; margin:14px 0 6px;}
+  input{ width:100%; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:10px 14px; border-radius:8px; font-size:13px; outline:none; }
+  button{ margin-top:18px; background:var(--accent); color:#06272c; border:none; padding:11px 20px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+  table{width:100%; border-collapse:collapse; margin-top:20px; font-size:12.5px;}
+  th,td{padding:8px 10px; border-bottom:1px solid var(--border); text-align:left;}
+  th{color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase;}
+  .bad{color:var(--bad);}
+  .ok{color:var(--good);}
+  #status{margin-top:14px; font-size:13px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<h1>Diagnóstico — Ativo x Receptivo</h1>
+<div class="subtitle">
+  Busca os últimos chamados do departamento Financeiro e mostra o campo <code>origin</code> de cada um,
+  junto com o protocolo. Abre 2 ou 3 desses protocolos no Digisac normal (que mostra visualmente se é
+  Ativo ou Receptivo) e me diz qual valor de <code>origin</code> corresponde a qual — assim eu confirmo
+  a regra em vez de arriscar.
+</div>
+
+<label for="baseUrl">URL base do Digisac</label>
+<input type="text" id="baseUrl" placeholder="https://lucralizecontabil.digisac.me">
+
+<label for="token">Token de acesso pessoal</label>
+<input type="password" id="token" placeholder="Cole o token aqui (não vai pra mim, fica só no navegador)">
+
+<button id="runBtn">Buscar últimos 20 chamados do Financeiro</button>
+
+<div id="status"></div>
+<table id="out" style="display:none;"></table>
+
+<script>
+async function digisacGet(baseUrl, token, path){
+  const res = await fetch(`${baseUrl}${path}`, { headers: { 'Authorization': `Bearer ${token}` } });
+  const status = res.status;
+  let body;
+  try{ body = await res.json(); } catch(e){ body = {}; }
+  return { status, body };
+}
+
+document.getElementById('runBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('runBtn');
+  let baseUrl = document.getElementById('baseUrl').value.trim().replace(/\/+$/, '');
+  if(baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = 'https://' + baseUrl;
+  const token = document.getElementById('token').value.trim();
+  const statusEl = document.getElementById('status');
+  const out = document.getElementById('out');
+
+  if(!baseUrl || !token){ statusEl.textContent = 'Preencha URL e token.'; return; }
+
+  btn.disabled = true;
+  statusEl.textContent = 'Buscando departamentos...';
+  out.style.display = 'none';
+
+  try{
+    // acha o departamento "Financeiro"
+    const deptResp = await digisacGet(baseUrl, token, '/api/v1/departments?perPage=100');
+    const depts = deptResp.body.data || [];
+    const financeiro = depts.find(d => (d.name||'').toUpperCase().includes('FINANCEIRO'));
+    if(!financeiro){
+      statusEl.innerHTML = '<span class="bad">Não achei um departamento com "Financeiro" no nome. Departamentos encontrados: ' + depts.map(d=>d.name).join(', ') + '</span>';
+      btn.disabled = false;
+      return;
+    }
+    statusEl.textContent = `Departamento encontrado: ${financeiro.name}. Buscando chamados...`;
+
+    const query = {
+      where: { departmentId: financeiro.id },
+      order: [['startedAt','DESC']],
+      page: 1,
+      perPage: 20
+    };
+    const path = `/api/v1/tickets?query=${encodeURIComponent(JSON.stringify(query))}`;
+    const resp = await digisacGet(baseUrl, token, path);
+    const tickets = resp.body.data || [];
+
+    if(!tickets.length){
+      statusEl.innerHTML = '<span class="bad">Nenhum chamado retornado. Status: ' + resp.status + '</span>';
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.innerHTML = `<span class="ok">${tickets.length} chamados carregados.</span> Confira alguns protocolos no Digisac normal e me diga qual "origin" é Ativo e qual é Receptivo.`;
+
+    let html = '<tr><th>Protocolo</th><th>origin</th><th>isOpen</th><th>startedAt</th><th>comments</th></tr>';
+    tickets.forEach(t => {
+      html += `<tr>
+        <td>${t.protocol || t.id}</td>
+        <td><b>${t.origin}</b></td>
+        <td>${t.isOpen}</td>
+        <td>${t.startedAt}</td>
+        <td>${(t.comments||'').toString().slice(0,40)}</td>
+      </tr>`;
+    });
+    out.innerHTML = html;
+    out.style.display = 'table';
+
+  } catch(err){
+    statusEl.innerHTML = '<span class="bad">Erro: ' + err.message + '</span>';
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>

@@ -92,12 +92,25 @@ document.getElementById('runBtn').addEventListener('click', async () => {
       return;
     }
 
+    statusEl.textContent = 'Buscando nomes dos contatos...';
+    const contactMap = new Map();
+    let cpage = 1;
+    while(true){
+      const cresp = await digisacGet(baseUrl, token, `/api/v1/contacts?perPage=200&page=${cpage}`);
+      const cdata = cresp.body.data || [];
+      cdata.forEach(c => contactMap.set(c.id, c.name));
+      if(cdata.length < 200) break;
+      cpage++;
+      if(cpage > 500) break;
+    }
+
     statusEl.innerHTML = `<span class="ok">${tickets.length} chamados carregados.</span> Confira alguns protocolos no Digisac normal e me diga qual "origin" é Ativo e qual é Receptivo.`;
 
-    let html = '<tr><th>Protocolo</th><th>origin</th><th>isOpen</th><th>startedAt</th><th>comments</th></tr>';
+    let html = '<tr><th>Protocolo</th><th>Contato</th><th>origin</th><th>isOpen</th><th>startedAt</th><th>comments</th></tr>';
     tickets.forEach(t => {
       html += `<tr>
         <td>${t.protocol || t.id}</td>
+        <td>${contactMap.get(t.contactId) || '(sem nome)'}</td>
         <td><b>${t.origin}</b></td>
         <td>${t.isOpen}</td>
         <td>${t.startedAt}</td>

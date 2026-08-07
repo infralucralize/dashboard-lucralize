@@ -24,7 +24,8 @@ const DIGISAC_ACCOUNTS = {
         title: "Title",
         cnpj: "CNPJ_x002f_CPF_x002f_CEI",
         situacao: "Situa_x00e7__x00e3_o",
-        grupo: "GrupoEmpresarial"
+        grupo: "GrupoEmpresarial",
+        vencimento: "DiadoVencimentodoHonorario" 
       }
     }
   },
@@ -41,7 +42,8 @@ const DIGISAC_ACCOUNTS = {
       title: "Title",
       cnpj: "field_3",
       situacao: "Situa_x00e7__x00e3_o",
-      grupo: "CAMPO_QUE_NAO_EXISTE"
+      grupo: "CAMPO_QUE_NAO_EXISTE",
+       vencimento: "field_15" 
     }
   }
 }

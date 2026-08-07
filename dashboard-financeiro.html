@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Financeiro | Grupo Lucralize</title>
+<script src="token_config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2e38;
+    --text:#e8e9ec; --text2:#9599a3; --muted:#5f636e;
+    --blue:#378ADD; --coral:#D85A30; --green:#5DCAA5; --red:#E24B4A; --amber:#EF9F27;
+    --accent:#92dce5; --accent-contrast:#06272c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 24px 64px;}
+  header{margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:20px;}
+  header h1{font-size:22px;font-weight:600;margin:0 0 4px;}
+  header p{margin:0;color:var(--text2);font-size:13px;}
+
+  .config-panel{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:24px; }
+  .config-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px;}
+  .config-field{flex:1; min-width:200px;}
+  .config-field label{display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text2);}
+  .config-field input{
+    width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:9px 12px; border-radius:8px; font-size:13px; outline:none;
+  }
+  .config-actions{display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--accent); color:var(--accent-contrast); border:none; padding:11px 22px;
+    border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn-primary:disabled{opacity:.5; cursor:not-allowed;}
+  #statusLine{font-size:12.5px; color:var(--text2); margin-top:10px;}
+  #statusLine.ok{color:var(--green);}
+  #statusLine.err{color:var(--red);}
+  .progress-wrap{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-top:14px;display:none;}
+  .progress-wrap.show{display:block;}
+  .progress-bar{height:100%;width:30%;border-radius:4px;background:linear-gradient(90deg,var(--accent),#3fa9bb);background-size:200% 100%;animation:slide 1.4s ease-in-out infinite;}
+  @keyframes slide{0%{margin-left:0%;}50%{margin-left:65%;}100%{margin-left:0%;}}
+
+  #dashboardArea{display:none;}
+  #dashboardArea.show{display:block;}
+
+  .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;}
+  .filters select, .filters button{
+    background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;
+  }
+  .filters button.active{border-color:var(--blue);color:var(--blue);}
+  .note-approx{font-size:11.5px;color:var(--text2);margin:-6px 0 18px;}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:28px;}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .kpi .label{font-size:12px;color:var(--text2);margin-bottom:6px;}
+  .kpi .value{font-size:26px;font-weight:600;}
+  .kpi .delta{font-size:12px;margin-top:4px;}
+  .delta.down{color:var(--red);}
+  .delta.up{color:var(--green);}
+  .kpi.warn .value{color:var(--amber);}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+  .panel h2{font-size:15px;font-weight:600;margin:0 0 4px;}
+  .panel .sub{font-size:12px;color:var(--text2);margin:0 0 16px;}
+  .chart-box{position:relative;width:100%;height:300px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-bottom:8px;}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:800px){.two-col{grid-template-columns:1fr;}}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--border);}
+  th:first-child,td:first-child{text-align:left;color:var(--text2);}
+  th{color:var(--text2);font-weight:500;font-size:12px;}
+  tr:last-child td{border-bottom:none;}
+  footer{margin-top:24px;font-size:12px;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Dashboard Financeiro | Grupo Lucralize</h1>
+    <p>Cobrança ativa e receptiva — cruzamento ao vivo Digisac + SharePoint, Contabilidade e Tech</p>
+  </header>
+
+  <div class="config-panel">
+    <div class="config-row">
+      <div class="config-field">
+        <label for="cfgPassword">Senha de acesso</label>
+        <input type="password" id="cfgPassword" placeholder="Senha combinada com a diretoria">
+      </div>
+      <div class="config-field">
+        <label for="cfgFrom">Buscar chamados a partir de</label>
+        <input type="date" id="cfgFrom">
+      </div>
+      <div class="config-field">
+        <label for="cfgTo">Até</label>
+        <input type="date" id="cfgTo">
+      </div>
+    </div>
+    <div class="config-actions">
+      <button class="btn-primary" id="loadBtn">Carregar dashboard</button>
+    </div>
+    <div class="progress-wrap" id="progressWrap"><div class="progress-bar"></div></div>
+    <div id="statusLine"></div>
+  </div>
+
+  <div id="dashboardArea">
+
+  <div class="filters">
+    <button id="btnAtivo" class="active">Ativo</button>
+    <button id="btnReceptivo">Receptivo</button>
+    <button id="btnAmbos">Ambos</button>
+  </div>
+  <div class="note-approx">
+    "Ativo" e "Receptivo" são inferidos a partir do campo <code>origin</code> do chamado (manual → Ativo, automático → Receptivo) — uma aproximação, não uma classificação oficial do Digisac.
+  </div>
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="two-col">
+    <div class="panel">
+      <h2>Contabilidade — chamados por mês</h2>
+      <p class="sub">Departamento Financeiro</p>
+      <div class="legend" id="legendConta"></div>
+      <div class="chart-box"><canvas id="chartConta"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Tech — chamados por mês</h2>
+      <p class="sub">Departamento Financeiro</p>
+      <div class="legend" id="legendTech"></div>
+      <div class="chart-box"><canvas id="chartTech"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Comparativo — ligações ativas (cobrança proativa)</h2>
+    <p class="sub">As duas divisões no mesmo eixo, para comparar o ritmo</p>
+    <div class="legend" id="legendComp"></div>
+    <div class="chart-box"><canvas id="chartComp"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>Chamados abertos após a data de vencimento</h2>
+    <p class="sub">Cliente já entrou em contato (ou foi contatado) depois do dia de vencimento do honorário — só para chamados que conseguimos ligar a um cliente com dia de vencimento cadastrado</p>
+    <div class="legend" id="legendVenc"></div>
+    <div class="chart-box"><canvas id="chartVenc"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>Tabela mensal</h2>
+    <p class="sub">Valores absolutos por mês e divisão</p>
+    <table id="dataTable"></table>
+  </div>
+
+  </div>
+
+  <footer>Fonte: API do Digisac (chamados) + SharePoint (cadastro de clientes). "Após vencimento" e "Ativo/Receptivo" são estimativas.</footer>
+</div>
+
+<script>
+// =========================================================================
+// INFRAESTRUTURA COMPARTILHADA (mesma do painel principal)
+// =========================================================================
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "5938636f-0ec2-4bd4-9f39-3557479e0b61",
+    authority: "https://login.microsoftonline.com/5173aa83-66e1-49f3-9128-f2251b43294d",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+let msalAccount = null;
+let graphAccessToken = null;
+
+function logStatus(msg, cls){
+  const line = document.getElementById('statusLine');
+  line.textContent = msg;
+  line.className = cls || '';
+  if(cls === 'err') document.getElementById('progressWrap').classList.remove('show');
+}
+function clearStatus(){
+  document.getElementById('statusLine').textContent = '';
+  document.getElementById('statusLine').className = '';
+  document.getElementById('progressWrap').classList.add('show');
+}
+function finishStatus(){ document.getElementById('progressWrap').classList.remove('show'); }
+
+function cleanField(v){ return (v || '').toString().trim().replace(/\s+/g, ' ').toUpperCase(); }
+
+function b64ToBuf(b64){
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+async function deriveKey(password, saltBytes){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt: saltBytes, iterations: 150000, hash:'SHA-256' },
+    keyMaterial, { name:'AES-GCM', length:256 }, false, ['decrypt']
+  );
+}
+async function decryptToken(blob, password){
+  const salt = b64ToBuf(blob.salt);
+  const iv = b64ToBuf(blob.iv);
+  const key = await deriveKey(password, salt);
+  const ctBuf = b64ToBuf(blob.ct);
+  let plainBuf;
+  try{ plainBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ctBuf); }
+  catch(e){ throw new Error('Senha incorreta.'); }
+  return new TextDecoder().decode(plainBuf);
+}
+
+async function graphGet(token, path, extra){
+  const headers = { 'Authorization': `Bearer ${token}` };
+  if(extra) Object.assign(headers, extra);
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers });
+  if(!res.ok) throw new Error(`Graph ${res.status} em ${path}`);
+  return res.json();
+}
+async function digisacGet(baseUrl, token, path){
+  const res = await fetch(`${baseUrl}${path}`, { headers: { 'Authorization': `Bearer ${token}` } });
+  if(!res.ok) throw new Error(`Digisac ${res.status} em ${path}`);
+  return res.json();
+}
+
+async function fetchClientRoster(graphToken, spCfg){
+  const sitePathSuffix = spCfg.sitePath ? `:/sites/${spCfg.sitePath}` : '';
+  const site = await graphGet(graphToken, `/sites/${spCfg.hostname}${sitePathSuffix}`);
+  const siteId = site.id;
+  const listsResp = await graphGet(graphToken, `/sites/${siteId}/lists?$select=id,name,displayName`);
+  const list = listsResp.value.find(l => l.displayName === spCfg.listName || l.name === spCfg.listName);
+  if(!list) throw new Error(`Lista "${spCfg.listName}" não encontrada.`);
+
+  const F = spCfg.fields;
+  let clients = [];
+  let url = `/sites/${siteId}/lists/${list.id}/items?$expand=fields&$top=200`;
+  let guard = 0;
+  while(url && guard < 100){
+    guard++;
+    const resp = await graphGet(graphToken, url, { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+    (resp.value || []).forEach(item => {
+      const f = item.fields || {};
+      if(f[F.title]){
+        const vencRaw = F.vencimento ? f[F.vencimento] : null;
+        const vencDia = vencRaw !== null && vencRaw !== undefined ? parseInt(vencRaw, 10) : null;
+        clients.push({
+          title: cleanField(f[F.title]),
+          cnpj: (f[F.cnpj] || '').toString().replace(/\D/g,''),
+          situacao: cleanField(f[F.situacao]),
+          vencimentoDia: (vencDia && vencDia >= 1 && vencDia <= 31) ? vencDia : null
+        });
+      }
+    });
+    url = resp['@odata.nextLink'] ? resp['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+  }
+  return clients;
+}
+
+async function fetchAllTicketsFinanceiro(baseUrl, token, deptId, fromISO, toISO){
+  let all = [];
+  let page = 1;
+  const perPage = 100;
+  while(true){
+    const query = {
+      where: { departmentId: deptId, startedAt: { '$gte': fromISO, '$lte': toISO } },
+      page, perPage
+    };
+    const path = `/api/v1/tickets?query=${encodeURIComponent(JSON.stringify(query))}`;
+    const resp = await digisacGet(baseUrl, token, path);
+    const data = resp.data || [];
+    all = all.concat(data);
+    logStatus(`Chamados do Financeiro: ${all.length} carregados...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 200){ logStatus('⚠️ Parando por segurança: mais de 20.000 chamados. Confira o período.', 'err'); break; }
+  }
+  return all;
+}
+
+async function fetchDepartmentId(baseUrl, token, nameContains){
+  let page = 1;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/departments?perPage=100&page=${page}`);
+    const data = resp.data || [];
+    const found = data.find(d => (d.name||'').toUpperCase().includes(nameContains.toUpperCase()));
+    if(found) return found.id;
+    if(data.length < 100) break;
+    page++;
+    if(page > 20) break;
+  }
+  return null;
+}
+
+async function fetchContactMap(baseUrl, token){
+  const map = new Map();
+  let page = 1;
+  const perPage = 200;
+  while(true){
+    const resp = await digisacGet(baseUrl, token, `/api/v1/contacts?perPage=${perPage}&page=${page}`);
+    const data = resp.data || [];
+    data.forEach(c => map.set(c.id, c.name));
+    logStatus(`Contatos: ${map.size} carregados...`);
+    if(data.length < perPage) break;
+    page++;
+    if(page > 500) break;
+  }
+  return map;
+}
+
+// ---- casamento simples: CNPJ no nome do contato, senão contenção pelo título ----
+const STOPWORDS = new Set(['ltda','me','eireli','epp','sa','servicos','servico','de','da','do','das','dos','e','com','mei','individual','sociedade','simples','comercio','consultoria','tecnologia','solucoes','solucao','grupo']);
+function normStr(s){
+  return (s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+function tokensOf(s){
+  return new Set(normStr(s).split(' ').filter(t => t.length>2 && !STOPWORDS.has(t.toLowerCase())));
+}
+function extractDocs(text){
+  const found = [];
+  const matches = (text||'').match(/[\d.\-\/]{11,}/g) || [];
+  matches.forEach(m => { const d = m.replace(/\D/g,''); if(d.length===11||d.length===14) found.push(d); });
+  return found;
+}
+function buildSimpleMatcher(clients){
+  const withTokens = clients.map(c => ({...c, _tokens: tokensOf(c.title)}));
+  const byCnpj = new Map();
+  withTokens.forEach(c => { if(c.cnpj && c.cnpj.length>=11) byCnpj.set(c.cnpj, c); });
+
+  function isSubset(small, big){ if(!small.size) return false; for(const t of small) if(!big.has(t)) return false; return true; }
+
+  return function match(contactName){
+    if(!contactName) return null;
+    for(const d of extractDocs(contactName)){ if(byCnpj.has(d)) return byCnpj.get(d); }
+    const candidates = [contactName, ...contactName.split(/[|\-]/)];
+    const found = new Map();
+    for(const cand of candidates){
+      const ctoks = tokensOf(cand);
+      if(!ctoks.size) continue;
+      for(const c of withTokens){
+        if(!c._tokens.size) continue;
+        if(isSubset(c._tokens, ctoks) || isSubset(ctoks, c._tokens)) found.set(c.title, c);
+      }
+    }
+    if(found.size === 1) return [...found.values()][0];
+    return null; // sem match único = não arrisca
+  };
+}
+
+// =========================================================================
+// PIPELINE DO DASHBOARD FINANCEIRO
+// =========================================================================
+let RESULT = null; // { accounts: { hostKey: { monthly: {...}, meta } }, months: [...] }
+
+function monthKey(d){ return d.toISOString().slice(0,7); }
+function monthLabelPt(k){
+  const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const [y,m] = k.split('-');
+  return `${names[parseInt(m,10)-1]}/${y.slice(2)}`;
+}
+
+async function loadAccount(hostKey, accountCfg, password, fromISO, toISO){
+  logStatus(`[${hostKey}] Decifrando token...`);
+  const token = await decryptToken(accountCfg.tokenBlob, password);
+
+  logStatus(`[${hostKey}] Buscando departamento Financeiro...`);
+  const baseUrl = 'https://' + hostKey;
+  const deptId = await fetchDepartmentId(baseUrl, token, 'FINANCEIRO');
+  if(!deptId) throw new Error(`[${hostKey}] Não encontrei departamento "Financeiro".`);
+
+  logStatus(`[${hostKey}] Buscando cadastro de clientes no SharePoint...`);
+  const clients = await fetchClientRoster(graphAccessToken, accountCfg.sharepoint);
+
+  logStatus(`[${hostKey}] Buscando chamados do Financeiro...`);
+  const tickets = await fetchAllTicketsFinanceiro(baseUrl, token, deptId, fromISO, toISO);
+
+  logStatus(`[${hostKey}] Buscando contatos...`);
+  const contactMap = await fetchContactMap(baseUrl, token);
+
+  const matcher = buildSimpleMatcher(clients);
+
+  const monthly = {}; // mes -> {ativo, receptivo, outro, apos_vencimento, total_com_venc}
+  tickets.forEach(t => {
+    if(!t.startedAt) return;
+    const d = new Date(t.startedAt);
+    if(isNaN(d)) return;
+    const mk = monthKey(d);
+    if(!monthly[mk]) monthly[mk] = { ativo:0, receptivo:0, outro:0, apos_vencimento:0, total_com_venc:0 };
+    const bucket = monthly[mk];
+
+    if(t.origin === 'manual') bucket.ativo++;
+    else if(t.origin === 'automatic') bucket.receptivo++;
+    else bucket.outro++;
+
+    const contactName = contactMap.get(t.contactId) || null;
+    const cliente = matcher(contactName);
+    if(cliente && cliente.vencimentoDia){
+      bucket.total_com_venc++;
+      if(d.getDate() > cliente.vencimentoDia) bucket.apos_vencimento++;
+    }
+  });
+
+  return { monthly, totalTickets: tickets.length };
+}
+
+async function loadAllData(){
+  const btn = document.getElementById('loadBtn');
+  btn.disabled = true;
+  clearStatus();
+
+  const password = document.getElementById('cfgPassword').value;
+  const fromDate = document.getElementById('cfgFrom').value;
+  const toDate = document.getElementById('cfgTo').value;
+
+  if(!password){ logStatus('Preencha a senha de acesso.', 'err'); btn.disabled = false; return; }
+
+  const fromISO = fromDate ? new Date(fromDate+'T00:00:00').toISOString() : (() => { const d=new Date(); d.setMonth(d.getMonth()-7); return d.toISOString(); })();
+  const toISO = toDate ? new Date(toDate+'T23:59:59').toISOString() : new Date().toISOString();
+
+  try{
+    if(typeof DIGISAC_ACCOUNTS === 'undefined'){
+      throw new Error('token_config.js não carregado.');
+    }
+    const hostKeys = Object.keys(DIGISAC_ACCOUNTS).filter(h => !h.startsWith('SUBSTITUA_'));
+    if(hostKeys.length < 1) throw new Error('Nenhuma conta configurada em token_config.js.');
+
+    logStatus('Autenticando com Microsoft...');
+    try{
+      if(msalAccount){
+        const r = await msalInstance.acquireTokenSilent({ scopes:["Sites.Read.All","User.Read"], account: msalAccount });
+        graphAccessToken = r.accessToken;
+      } else throw new Error('sem conta');
+    } catch(e){
+      const r = await msalInstance.loginPopup({ scopes:["Sites.Read.All","User.Read"] });
+      graphAccessToken = r.accessToken;
+      msalAccount = r.account;
+    }
+    logStatus('Login OK.', 'ok');
+
+    const accounts = {};
+    for(const hostKey of hostKeys){
+      accounts[hostKey] = await loadAccount(hostKey, DIGISAC_ACCOUNTS[hostKey], password, fromISO, toISO);
+    }
+
+    // monta lista de meses no range
+    const allMonthKeys = new Set();
+    Object.values(accounts).forEach(a => Object.keys(a.monthly).forEach(m => allMonthKeys.add(m)));
+    const months = [...allMonthKeys].sort();
+
+    RESULT = { accounts, months, hostKeys };
+    logStatus('Pronto!', 'ok');
+    finishStatus();
+    document.getElementById('dashboardArea').classList.add('show');
+    renderAll(currentMode);
+
+  } catch(err){
+    logStatus('Erro: ' + err.message, 'err');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('loadBtn').addEventListener('click', loadAllData);
+
+// =========================================================================
+// RENDERIZAÇÃO (adaptado do dashboard financeiro original)
+// =========================================================================
+const colors = { conta:'#378ADD', tech:'#D85A30', receptivo1:'#5DCAA5', venc:'#EF9F27' };
+
+// identifica qual hostKey é qual divisão pelo nome (contém "contabil"/"tech")
+function contaHostKey(){ return RESULT.hostKeys.find(h => h.toLowerCase().includes('contabil')) || RESULT.hostKeys[0]; }
+function techHostKey(){ return RESULT.hostKeys.find(h => h.toLowerCase().includes('tech')) || RESULT.hostKeys[1] || RESULT.hostKeys[0]; }
+
+function seriesFor(hostKey, field){
+  return RESULT.months.map(m => (RESULT.accounts[hostKey].monthly[m] || {})[field] || 0);
+}
+function labels(){ return RESULT.months.map(monthLabelPt); }
+
+function legendHtml(items){
+  return items.map(i => `<span><span class="dot" style="background:${i.color}"></span>${i.label}</span>`).join('');
+}
+
+let chartConta, chartTech, chartComp, chartVenc;
+let currentMode = 'ativo';
+
+function pct(a,b){ return a ? Math.round((b/a)*100) : 0; }
+
+function renderKPIs(){
+  const grid = document.getElementById('kpiGrid');
+  grid.innerHTML = '';
+  const ck = contaHostKey(), tk = techHostKey();
+  const contaAtivo = seriesFor(ck,'ativo').reduce((a,b)=>a+b,0);
+  const techAtivo = seriesFor(tk,'ativo').reduce((a,b)=>a+b,0);
+  const contaVenc = seriesFor(ck,'apos_vencimento').reduce((a,b)=>a+b,0);
+  const contaComVenc = seriesFor(ck,'total_com_venc').reduce((a,b)=>a+b,0);
+  const techVenc = seriesFor(tk,'apos_vencimento').reduce((a,b)=>a+b,0);
+  const techComVenc = seriesFor(tk,'total_com_venc').reduce((a,b)=>a+b,0);
+
+  const items = [
+    { label:'Contabilidade — chamados ativos no período', value: contaAtivo },
+    { label:'Tech — chamados ativos no período', value: techAtivo },
+    { label:'Contabilidade — abertos após vencimento', value: `${contaVenc} (${pct(contaComVenc,contaVenc)}%)`, warn:true },
+    { label:'Tech — abertos após vencimento', value: `${techVenc} (${pct(techComVenc,techVenc)}%)`, warn:true },
+  ];
+  items.forEach(it => {
+    const div = document.createElement('div');
+    div.className = 'kpi' + (it.warn ? ' warn' : '');
+    div.innerHTML = `<div class="label">${it.label}</div><div class="value">${it.value}</div>`;
+    grid.appendChild(div);
+  });
+}
+
+function buildDivisionChart(canvasId, hostKey, mode, color){
+  const ctx = document.getElementById(canvasId);
+  const datasets = [];
+  if(mode==='ativo' || mode==='ambos') datasets.push({ label:'Ativo', data: seriesFor(hostKey,'ativo'), borderColor:color, backgroundColor:color, pointRadius:4, tension:0.25 });
+  if(mode==='receptivo' || mode==='ambos') datasets.push({ label:'Receptivo', data: seriesFor(hostKey,'receptivo'), borderColor:colors.receptivo1, backgroundColor:colors.receptivo1, pointRadius:4, borderDash:[4,3], tension:0.25 });
+  return new Chart(ctx, { type:'line', data:{ labels: labels(), datasets },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true, ticks:{color:'#9599a3'}, grid:{color:'#2a2e38'}}, x:{ticks:{color:'#9599a3'}, grid:{display:false}} } } });
+}
+
+function buildCompChart(){
+  const ck = contaHostKey(), tk = techHostKey();
+  const ctx = document.getElementById('chartComp');
+  const datasets = [
+    { label:'Contabilidade', data: seriesFor(ck,'ativo'), borderColor:colors.conta, backgroundColor:colors.conta, pointRadius:4, tension:0.25 },
+    { label:'Tech', data: seriesFor(tk,'ativo'), borderColor:colors.tech, backgroundColor:colors.tech, pointRadius:4, tension:0.25 }
+  ];
+  return new Chart(ctx, { type:'line', data:{ labels: labels(), datasets },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true, ticks:{color:'#9599a3'}, grid:{color:'#2a2e38'}}, x:{ticks:{color:'#9599a3'}, grid:{display:false}} } } });
+}
+
+function buildVencChart(){
+  const ck = contaHostKey(), tk = techHostKey();
+  const ctx = document.getElementById('chartVenc');
+  const datasets = [
+    { label:'Contabilidade', data: seriesFor(ck,'apos_vencimento'), borderColor:colors.conta, backgroundColor:colors.conta, pointRadius:4, tension:0.25 },
+    { label:'Tech', data: seriesFor(tk,'apos_vencimento'), borderColor:colors.tech, backgroundColor:colors.tech, pointRadius:4, tension:0.25 }
+  ];
+  return new Chart(ctx, { type:'line', data:{ labels: labels(), datasets },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true, ticks:{color:'#9599a3'}, grid:{color:'#2a2e38'}}, x:{ticks:{color:'#9599a3'}, grid:{display:false}} } } });
+}
+
+function renderTable(){
+  const ck = contaHostKey(), tk = techHostKey();
+  const table = document.getElementById('dataTable');
+  let rows = `<tr><th>Mês</th><th>Conta. ativo</th><th>Conta. receptivo</th><th>Conta. após venc.</th><th>Tech ativo</th><th>Tech receptivo</th><th>Tech após venc.</th></tr>`;
+  RESULT.months.forEach((m,i) => {
+    const c = RESULT.accounts[ck].monthly[m] || {};
+    const t = RESULT.accounts[tk].monthly[m] || {};
+    rows += `<tr><td>${monthLabelPt(m)}</td><td>${c.ativo||0}</td><td>${c.receptivo||0}</td><td>${c.apos_vencimento||0}</td><td>${t.ativo||0}</td><td>${t.receptivo||0}</td><td>${t.apos_vencimento||0}</td></tr>`;
+  });
+  table.innerHTML = rows;
+}
+
+function renderAll(mode){
+  if(!RESULT) return;
+  renderKPIs();
+  if(chartConta) chartConta.destroy();
+  if(chartTech) chartTech.destroy();
+  if(chartComp) chartComp.destroy();
+  if(chartVenc) chartVenc.destroy();
+
+  chartConta = buildDivisionChart('chartConta', contaHostKey(), mode, colors.conta);
+  chartTech = buildDivisionChart('chartTech', techHostKey(), mode, colors.tech);
+  chartComp = buildCompChart();
+  chartVenc = buildVencChart();
+
+  const legConta = mode==='ambos' ? [{color:colors.conta,label:'Ativo'},{color:colors.receptivo1,label:'Receptivo'}] : [{color:colors.conta,label: mode==='ativo'?'Ativo':'Receptivo'}];
+  const legTech = mode==='ambos' ? [{color:colors.tech,label:'Ativo'},{color:colors.receptivo1,label:'Receptivo'}] : [{color:colors.tech,label: mode==='ativo'?'Ativo':'Receptivo'}];
+  document.getElementById('legendConta').innerHTML = legendHtml(legConta);
+  document.getElementById('legendTech').innerHTML = legendHtml(legTech);
+  document.getElementById('legendComp').innerHTML = legendHtml([{color:colors.conta,label:'Contabilidade'},{color:colors.tech,label:'Tech'}]);
+  document.getElementById('legendVenc').innerHTML = legendHtml([{color:colors.conta,label:'Contabilidade'},{color:colors.tech,label:'Tech'}]);
+
+  renderTable();
+}
+
+document.getElementById('btnAtivo').addEventListener('click', () => setMode('ativo'));
+document.getElementById('btnReceptivo').addEventListener('click', () => setMode('receptivo'));
+document.getElementById('btnAmbos').addEventListener('click', () => setMode('ambos'));
+function setMode(mode){
+  currentMode = mode;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  document.getElementById(mode==='ativo'?'btnAtivo':mode==='receptivo'?'btnReceptivo':'btnAmbos').classList.add('active');
+  renderAll(mode);
+}
+</script>
+</body>
+</html>

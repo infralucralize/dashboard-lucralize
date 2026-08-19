@@ -265,6 +265,7 @@
   .report-bullets{ margin:0; padding-left:20px; }
   .report-bullets li{ margin-bottom:7px; font-size:13.5px; line-height:1.5; }
   .report-bullets b{ color:var(--text); }
+  .report-note{ font-size:12px; color:var(--muted); margin:0 0 10px; }
   .report-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
   .report-table th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 10px; border-bottom:1px solid var(--border); }
   .report-table td{ padding:7px 10px; border-bottom:1px solid var(--border); }
@@ -1216,6 +1217,21 @@ function buildReportData(){
   const piorNps = entities.filter(e => e.qtd_avaliados >= 3 && e.nota_media !== null)
     .sort((a,b) => a.nota_media - b.nota_media).slice(0,5);
 
+  // top 5 melhores NPS (mesmo critério)
+  const melhorNps = entities.filter(e => e.qtd_avaliados >= 3 && e.nota_media !== null)
+    .sort((a,b) => b.nota_media - a.nota_media).slice(0,5);
+
+  // promotoras/neutras/detratoras somadas (dá contexto ao NPS médio)
+  const promotores = entities.reduce((s,e) => s + (e.promotores||0), 0);
+  const neutros = entities.reduce((s,e) => s + (e.neutros||0), 0);
+  const detratores = entities.reduce((s,e) => s + (e.detratores||0), 0);
+  const npsScore = avaliados ? Math.round(((promotores - detratores) / avaliados) * 100) : null;
+
+  // clientes com contato mais frequente (cadência baixa = contato muito recorrente),
+  // só considerando quem teve chamados suficientes pra a média fazer sentido
+  const maisFrequentes = entities.filter(e => e.chamados >= 3 && e.dias_entre_chamados !== null)
+    .sort((a,b) => a.dias_entre_chamados - b.dias_entre_chamados).slice(0,5);
+
   // top 5 maiores tempos de resolução (só ativos)
   const piorHoras = entities.filter(e => e.situacao === 'ATIVO' && e.horas_medias_resolucao !== null)
     .sort((a,b) => b.horas_medias_resolucao - a.horas_medias_resolucao).slice(0,5);
@@ -1230,7 +1246,8 @@ function buildReportData(){
     csatMedio: csats.length ? avg(csats) : null,
     horasMedia: horasArr.length ? avg(horasArr) : null,
     npsMedio: avaliados ? notaPonderada/avaliados : null,
-    situDist, topDeptos, topChamados, piorNps, piorHoras,
+    promotores, neutros, detratores, npsScore,
+    situDist, topDeptos, topChamados, piorNps, melhorNps, piorHoras, maisFrequentes,
     gruposCount, avulsosCount, naoIdentificado,
     totalEntidades: entities.length
   };
@@ -1256,6 +1273,14 @@ function renderReport(){
     `<tr><td>${e.nome}</td><td>${fmt1(e.nota_media)}</td><td>${e.qtd_avaliados}</td><td>${e.chamados}</td></tr>`
   ).join('');
 
+  const melhorNpsRows = d.melhorNps.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.nota_media)}</td><td>${e.qtd_avaliados}</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
+  const frequentesRows = d.maisFrequentes.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.dias_entre_chamados)}</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
   const horasRows = d.piorHoras.map(e =>
     `<tr><td>${e.nome}</td><td>${fmt1(e.horas_medias_resolucao)}h</td><td>${e.chamados}</td></tr>`
   ).join('');
@@ -1263,6 +1288,7 @@ function renderReport(){
   const bullets = [];
   bullets.push(`No período analisado, foram registrados <b>${d.totalChamados.toLocaleString('pt-BR')} chamados</b> entre <b>${d.totalEntidades} clientes/grupos</b> (${d.gruposCount} grupos, ${d.avulsosCount} avulsos).`);
   bullets.push(`O NPS médio ponderado é <b>${fmt1(d.npsMedio)}</b>, com <b>${d.avaliados}</b> avaliações reais recebidas e <b>${d.totalSemNota.toLocaleString('pt-BR')}</b> chamados sem nota (${totalPct(d.totalSemNota, d.totalChamados)}% do total).`);
+  if(d.avaliados) bullets.push(`Dessas avaliações: <b>${d.promotores}</b> promotoras (9-10), <b>${d.neutros}</b> neutras (7-8) e <b>${d.detratores}</b> detratoras (0-6) — score NPS de <b>${d.npsScore}</b>.`);
   bullets.push(`O CSAT interno médio (estimativa por tempo de atendimento) é <b>${fmt2(d.csatMedio)}</b> de 5, e o tempo médio de resolução geral é de <b>${fmt1(d.horasMedia)} horas</b>.`);
   if(d.topDeptos.length) bullets.push(`O departamento com mais volume é <b>${d.topDeptos[0][0]}</b>, respondendo por <b>${totalPct(d.topDeptos[0][1], d.totalChamados)}%</b> dos chamados no período.`);
   if(d.naoIdentificado) bullets.push(`<b>${d.naoIdentificado.chamados}</b> chamados (${totalPct(d.naoIdentificado.chamados, d.totalChamados)}%) não puderam ser ligados com certeza a um cliente cadastrado.`);
@@ -1303,6 +1329,23 @@ function renderReport(){
         <table class="report-table">
           <tr><th>Cliente</th><th>NPS</th><th>Avaliações</th><th>Chamados</th></tr>
           ${npsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Melhores NPS (mín. 3 avaliações)</h3>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>NPS</th><th>Avaliações</th><th>Chamados</th></tr>
+          ${melhorNpsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Contato mais frequente (cadência mais curta, mín. 3 chamados)</h3>
+        <p class="report-note">Dias entre chamados mais baixo pode indicar demanda recorrente ou um problema que não se resolve de vez.</p>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>Dias entre chamados</th><th>Chamados</th></tr>
+          ${frequentesRows || '<tr><td colspan="3">Sem dados suficientes.</td></tr>'}
         </table>
       </div>
 

@@ -230,14 +230,15 @@
   .header-row{ margin-bottom:6px; }
   h1{ color:#111 !important; }
   .subtitle{ color:#444 !important; }
-  #printHeader{
+  body:not(.printing-report) #printHeader{
     display:block !important; font-size:12px; color:#444; margin:-8px 0 14px;
   }
-  .kpis{ grid-template-columns:repeat(5,1fr); margin-bottom:14px; }
+  body.printing-report #printHeader{ display:none !important; }
+  body:not(.printing-report) .kpis{ grid-template-columns:repeat(5,1fr); margin-bottom:14px; }
   .kpi{ background:#fff !important; border:1px solid #ccc !important; }
   .kpi .val{ color:#111 !important; }
   .kpi .lbl{ color:#555 !important; }
-  table{ font-size:10px; }
+  body:not(.printing-report) table{ font-size:10px; }
   thead{ display:table-header-group; }
   thead th{ background:#f0f0f0 !important; color:#111 !important; border-color:#ccc !important; }
   tbody tr.row-client td, tbody tr.member-row td, tbody tr.section-divider td, tbody tr.nps-breakdown-row td{
@@ -256,6 +257,33 @@
   .score-bad{ color:#a3231f !important; }
   .muted{ color:#777 !important; }
 }
+  .report-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px 28px; margin-bottom:24px; }
+  .report-wrap h2{ font-size:19px; margin:0 0 4px; font-family:inherit; }
+  .report-wrap .report-sub{ font-size:12.5px; color:var(--muted); margin-bottom:20px; }
+  .report-section{ margin-bottom:22px; }
+  .report-section h3{ font-size:14px; margin:0 0 10px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:6px; }
+  .report-bullets{ margin:0; padding-left:20px; }
+  .report-bullets li{ margin-bottom:7px; font-size:13.5px; line-height:1.5; }
+  .report-bullets b{ color:var(--text); }
+  .report-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  .report-table th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 10px; border-bottom:1px solid var(--border); }
+  .report-table td{ padding:7px 10px; border-bottom:1px solid var(--border); }
+  .report-table td:first-child{ font-weight:600; }
+  .report-actions{ display:flex; gap:10px; margin-top:6px; }
+  .report-grid-mini{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-top:6px; }
+  .report-mini-card{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .report-mini-card .n{ font-size:20px; font-weight:700; }
+  .report-mini-card .l{ font-size:11px; color:var(--muted); }
+
+  @media print{
+    body.printing-report .toolbar, body.printing-report .config-panel,
+    body.printing-report table, body.printing-report .kpis{ display:none !important; }
+    body.printing-report #reportArea{ display:block !important; }
+    body.printing-report .report-wrap{ border:none !important; background:#fff !important; }
+    body.printing-report .report-section h3{ color:#111 !important; }
+    body.printing-report .report-mini-card{ background:#fff !important; border:1px solid #ccc !important; }
+    body:not(.printing-report) #reportArea{ display:none !important; }
+  }
 </style>
 </head>
 <body>
@@ -344,11 +372,14 @@
   </label>
 
   <div class="spacer"></div>
-  <button class="chip" id="exportPdfBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ Gerar PDF</button>
+  <button class="chip" id="generateReportBtn" style="cursor:pointer; border:none; font:inherit;">📄 Gerar relatório</button>
+  <button class="chip" id="exportPdfBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ PDF da tabela</button>
   <span class="count-badge" id="countBadge"></span>
 </div>
 
 <div id="printHeader" style="display:none;"></div>
+
+<div id="reportArea" style="display:none;"></div>
 
 <table>
   <thead>
@@ -447,6 +478,7 @@ let searchTerm = '';
 let expanded = new Set();
 let npsExpanded = new Set();
 let lastRows = [];
+let lastFilteredRows = [];
 
 function fmtNum(v, digits=1){
   if(v === null || v === undefined) return '<span class="muted">—</span>';
@@ -759,6 +791,7 @@ function render(){
   });
 
   filtered = sortRows(filtered);
+  lastFilteredRows = filtered;
 
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
@@ -1119,7 +1152,7 @@ document.getElementById('onlyGroupsChk').addEventListener('change', (e) => {
   render();
 });
 
-document.getElementById('exportPdfBtn').addEventListener('click', () => {
+function buildContextLine(){
   const now = new Date();
   const liveMode = document.getElementById('liveModeChk').checked;
   const periodoTxt = liveMode
@@ -1135,12 +1168,177 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   if(onlyGroups) filtrosAtivos.push('Só grupos');
   if(groupExcludeInactive) filtrosAtivos.push('Ignorando empresas inativas nos grupos');
 
-  document.getElementById('printHeader').innerHTML =
-    `Gerado em ${now.toLocaleString('pt-BR')} · ${periodoTxt}` +
+  return `Gerado em ${now.toLocaleString('pt-BR')} · ${periodoTxt}` +
     (filtrosAtivos.length ? ` · Filtros ativos: ${filtrosAtivos.join(' · ')}` : ' · Sem filtros de coluna ativos');
+}
 
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing-report');
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  document.body.classList.remove('printing-report');
+  document.getElementById('printHeader').innerHTML = buildContextLine();
   window.print();
 });
+
+// ---- relatório executivo ----
+function fmt1(v){ return (v === null || v === undefined) ? '—' : v.toFixed(1); }
+function fmt2(v){ return (v === null || v === undefined) ? '—' : v.toFixed(2); }
+
+function buildReportData(){
+  const rows = lastFilteredRows.length ? lastFilteredRows : lastRows;
+  const entities = rows.map(r => r.data);
+
+  const totalChamados = entities.reduce((s,e) => s + e.chamados, 0);
+  const totalSemNota = entities.reduce((s,e) => s + e.sem_nota, 0);
+  const avaliados = entities.reduce((s,e) => s + e.qtd_avaliados, 0);
+  const csats = entities.filter(e => e.csat_interno_medio !== null).map(e => e.csat_interno_medio);
+  const horasArr = entities.filter(e => e.horas_medias_resolucao !== null).map(e => e.horas_medias_resolucao);
+  const notaPonderada = entities.reduce((s,e) => s + (e.nota_media !== null ? e.nota_media * e.qtd_avaliados : 0), 0);
+
+  // distribuição por situação
+  const situDist = {};
+  entities.forEach(e => { const k = e.situacao || 'N/D'; situDist[k] = (situDist[k]||0) + 1; });
+
+  // departamentos (soma bruta a partir de deptoCounts de cada entidade)
+  const deptTotais = {};
+  entities.forEach(e => {
+    const counts = e.deptoCounts || {};
+    for(const dk in counts) deptTotais[dk] = (deptTotais[dk]||0) + counts[dk];
+  });
+  const topDeptos = Object.entries(deptTotais).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // top 5 mais chamados
+  const topChamados = [...entities].sort((a,b)=>b.chamados-a.chamados).slice(0,5);
+
+  // top 5 piores NPS (só com pelo menos 3 avaliações, pra não pegar ruído)
+  const piorNps = entities.filter(e => e.qtd_avaliados >= 3 && e.nota_media !== null)
+    .sort((a,b) => a.nota_media - b.nota_media).slice(0,5);
+
+  // top 5 maiores tempos de resolução (só ativos)
+  const piorHoras = entities.filter(e => e.situacao === 'ATIVO' && e.horas_medias_resolucao !== null)
+    .sort((a,b) => b.horas_medias_resolucao - a.horas_medias_resolucao).slice(0,5);
+
+  // grupos vs avulsos, e não identificado
+  const gruposCount = entities.filter(e => e.membros).length;
+  const avulsosCount = entities.length - gruposCount;
+  const naoIdentificado = entities.find(e => e.nome === UNIDENTIFIED_GROUP);
+
+  return {
+    totalChamados, totalSemNota, avaliados,
+    csatMedio: csats.length ? avg(csats) : null,
+    horasMedia: horasArr.length ? avg(horasArr) : null,
+    npsMedio: avaliados ? notaPonderada/avaliados : null,
+    situDist, topDeptos, topChamados, piorNps, piorHoras,
+    gruposCount, avulsosCount, naoIdentificado,
+    totalEntidades: entities.length
+  };
+}
+
+function renderReport(){
+  const d = buildReportData();
+  const situLabels = { 'ATIVO':'Ativos', 'INATIVO':'Inativos', 'SUSPENSO':'Suspensos', 'EM CANCELAMENTO':'Em cancelamento', 'BAIXADA':'Baixados', 'N/D':'Não identificado' };
+
+  const situHtml = Object.entries(d.situDist).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+    `<div class="report-mini-card"><div class="n">${v}</div><div class="l">${situLabels[k]||k}</div></div>`
+  ).join('');
+
+  const deptoRows = d.topDeptos.map(([nome,qtd]) =>
+    `<tr><td>${nome}</td><td>${qtd}</td><td>${totalPct(qtd, d.totalChamados)}%</td></tr>`
+  ).join('');
+
+  const chamadosRows = d.topChamados.map(e =>
+    `<tr><td>${e.nome}</td><td>${e.chamados}</td><td>${fmt1(e.nota_media)}</td><td>${fmt2(e.csat_interno_medio)}</td></tr>`
+  ).join('');
+
+  const npsRows = d.piorNps.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.nota_media)}</td><td>${e.qtd_avaliados}</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
+  const horasRows = d.piorHoras.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.horas_medias_resolucao)}h</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
+  const bullets = [];
+  bullets.push(`No período analisado, foram registrados <b>${d.totalChamados.toLocaleString('pt-BR')} chamados</b> entre <b>${d.totalEntidades} clientes/grupos</b> (${d.gruposCount} grupos, ${d.avulsosCount} avulsos).`);
+  bullets.push(`O NPS médio ponderado é <b>${fmt1(d.npsMedio)}</b>, com <b>${d.avaliados}</b> avaliações reais recebidas e <b>${d.totalSemNota.toLocaleString('pt-BR')}</b> chamados sem nota (${totalPct(d.totalSemNota, d.totalChamados)}% do total).`);
+  bullets.push(`O CSAT interno médio (estimativa por tempo de atendimento) é <b>${fmt2(d.csatMedio)}</b> de 5, e o tempo médio de resolução geral é de <b>${fmt1(d.horasMedia)} horas</b>.`);
+  if(d.topDeptos.length) bullets.push(`O departamento com mais volume é <b>${d.topDeptos[0][0]}</b>, respondendo por <b>${totalPct(d.topDeptos[0][1], d.totalChamados)}%</b> dos chamados no período.`);
+  if(d.naoIdentificado) bullets.push(`<b>${d.naoIdentificado.chamados}</b> chamados (${totalPct(d.naoIdentificado.chamados, d.totalChamados)}%) não puderam ser ligados com certeza a um cliente cadastrado.`);
+
+  const html = `
+    <div class="report-wrap">
+      <h2>Relatório executivo — Painel de Atendimento</h2>
+      <div class="report-sub" id="reportContext"></div>
+
+      <div class="report-section">
+        <h3>Visão geral</h3>
+        <ul class="report-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+      </div>
+
+      <div class="report-section">
+        <h3>Distribuição por situação</h3>
+        <div class="report-grid-mini">${situHtml}</div>
+      </div>
+
+      <div class="report-section">
+        <h3>Departamentos com mais volume</h3>
+        <table class="report-table">
+          <tr><th>Departamento</th><th>Chamados</th><th>% do total</th></tr>
+          ${deptoRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Clientes/grupos com mais chamados</h3>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>Chamados</th><th>NPS</th><th>CSAT interno</th></tr>
+          ${chamadosRows || '<tr><td colspan="4">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Piores NPS (mín. 3 avaliações)</h3>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>NPS</th><th>Avaliações</th><th>Chamados</th></tr>
+          ${npsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Maiores tempos de resolução (clientes ativos)</h3>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>Horas médias</th><th>Chamados</th></tr>
+          ${horasRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-actions">
+        <button class="chip" id="printReportBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ Gerar PDF do relatório</button>
+        <button class="chip" id="closeReportBtn" style="cursor:pointer; border:none; font:inherit;">Fechar relatório</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reportArea').innerHTML = html;
+  document.getElementById('reportContext').textContent = buildContextLine();
+  document.getElementById('reportArea').style.display = 'block';
+
+  document.getElementById('printReportBtn').addEventListener('click', () => {
+    document.body.classList.add('printing-report');
+    window.print();
+  });
+  document.getElementById('closeReportBtn').addEventListener('click', () => {
+    document.getElementById('reportArea').style.display = 'none';
+  });
+}
+
+function totalPct(part, total){ return total ? Math.round(100*part/total) : 0; }
+
+document.getElementById('generateReportBtn').addEventListener('click', renderReport);
+
+
 
 document.getElementById('search').addEventListener('input', (e) => {
   searchTerm = e.target.value;

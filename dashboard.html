@@ -220,6 +220,42 @@
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
 
   footer{margin-top:24px; font-size:11.5px; color:var(--muted); text-align:center;}
+@media print{
+  @page{ size: landscape; margin: 12mm; }
+  body{ background:#fff !important; color:#111 !important; padding:0; }
+  .config-panel, .toolbar, .col-popover, .filter-icon, .nps-toggle,
+  .month-picker, #excludeInactiveLabel, #onlyGroupsLabel, footer, .header-row img{
+    display:none !important;
+  }
+  .header-row{ margin-bottom:6px; }
+  h1{ color:#111 !important; }
+  .subtitle{ color:#444 !important; }
+  #printHeader{
+    display:block !important; font-size:12px; color:#444; margin:-8px 0 14px;
+  }
+  .kpis{ grid-template-columns:repeat(5,1fr); margin-bottom:14px; }
+  .kpi{ background:#fff !important; border:1px solid #ccc !important; }
+  .kpi .val{ color:#111 !important; }
+  .kpi .lbl{ color:#555 !important; }
+  table{ font-size:10px; }
+  thead{ display:table-header-group; }
+  thead th{ background:#f0f0f0 !important; color:#111 !important; border-color:#ccc !important; }
+  tbody tr.row-client td, tbody tr.member-row td, tbody tr.section-divider td, tbody tr.nps-breakdown-row td{
+    border-color:#ddd !important; color:#111 !important; page-break-inside:avoid;
+  }
+  tbody tr.section-divider td{ color:#333 !important; background:#f7f7f7 !important; }
+  .member-row{ background:#fafafa !important; }
+  .badge{ border:1px solid #999; }
+  .badge-ativo{ background:#e6f4ec !important; color:#1c7a44 !important; }
+  .badge-inativo{ background:#eee !important; color:#555 !important; }
+  .badge-suspenso{ background:#fdf1dd !important; color:#8a5a00 !important; }
+  .badge-cancelamento{ background:#fbe4e2 !important; color:#a3231f !important; }
+  .badge-grupo{ background:#e8f6f8 !important; color:#0f6674 !important; }
+  .score-good{ color:#1c7a44 !important; }
+  .score-mid{ color:#8a5a00 !important; }
+  .score-bad{ color:#a3231f !important; }
+  .muted{ color:#777 !important; }
+}
 </style>
 </head>
 <body>
@@ -308,8 +344,11 @@
   </label>
 
   <div class="spacer"></div>
+  <button class="chip" id="exportPdfBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ Gerar PDF</button>
   <span class="count-badge" id="countBadge"></span>
 </div>
+
+<div id="printHeader" style="display:none;"></div>
 
 <table>
   <thead>
@@ -1078,6 +1117,29 @@ document.getElementById('onlyGroupsChk').addEventListener('change', (e) => {
   onlyGroups = e.target.checked;
   document.getElementById('onlyGroupsLabel').classList.toggle('active', onlyGroups);
   render();
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  const now = new Date();
+  const liveMode = document.getElementById('liveModeChk').checked;
+  const periodoTxt = liveMode
+    ? 'Modo ao vivo — últimos 6 meses (janela rolante)'
+    : (selectedMonths.size === ALL_MONTHS.length ? 'Todos os meses' :
+       selectedMonths.size === 0 ? 'Nenhum mês selecionado' :
+       `Meses selecionados: ${[...selectedMonths].sort().map(monthLabel).join(', ')}`);
+  const filtrosAtivos = [];
+  if(colFilters.situacao.size < SITU_OPTIONS.length) filtrosAtivos.push('Situação filtrada');
+  if(colFilters.depto_dominante.size < ALL_DEPTOS.length) filtrosAtivos.push('Departamento filtrado');
+  NUMERIC_FILTER_KEYS.forEach(k => { const f = colFilters[k]; if(f.min!==null || f.max!==null) filtrosAtivos.push(COL_LABELS[k] + ' filtrado'); });
+  if(searchTerm) filtrosAtivos.push(`Busca: "${searchTerm}"`);
+  if(onlyGroups) filtrosAtivos.push('Só grupos');
+  if(groupExcludeInactive) filtrosAtivos.push('Ignorando empresas inativas nos grupos');
+
+  document.getElementById('printHeader').innerHTML =
+    `Gerado em ${now.toLocaleString('pt-BR')} · ${periodoTxt}` +
+    (filtrosAtivos.length ? ` · Filtros ativos: ${filtrosAtivos.join(' · ')}` : ' · Sem filtros de coluna ativos');
+
+  window.print();
 });
 
 document.getElementById('search').addEventListener('input', (e) => {

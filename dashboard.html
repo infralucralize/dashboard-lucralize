@@ -480,6 +480,7 @@ let expanded = new Set();
 let npsExpanded = new Set();
 let lastRows = [];
 let lastFilteredRows = [];
+let lastFilteredTickets = [];
 
 function fmtNum(v, digits=1){
   if(v === null || v === undefined) return '<span class="muted">—</span>';
@@ -535,12 +536,13 @@ function avgGapDays(tss){
 // --- core aggregation, recomputed whenever filters change ---
 function aggregate(){
   const filteredTickets = TICKETS.filter(t => (selectedMonths.has(t.mes) || !t.mes) && colFilters.depto_dominante.has(t.depto || 'N/D'));
+  lastFilteredTickets = filteredTickets;
 
   // per-entity buckets keyed by resolved "cliente" name (null => unidentified)
   const entities = new Map();
   function getBucket(key){
     if(!entities.has(key)){
-      entities.set(key, {nome:key, situacao:null, grupo:null, chamados:0, notas:[], sem_nota:0, csats:[], horas:[], tss:[], dias:[], deptos:{}});
+      entities.set(key, {nome:key, situacao:null, grupo:null, chamados:0, notas:[], sem_nota:0, csats:[], horas:[], horasPrimeira:[], horasAtivo:[], transferencias:[], abertos:0, tss:[], dias:[], deptos:{}});
     }
     return entities.get(key);
   }
@@ -554,6 +556,10 @@ function aggregate(){
     if(t.nota !== null && t.nota !== undefined) b.notas.push(t.nota); else b.sem_nota += 1;
     if(t.csat !== null && t.csat !== undefined) b.csats.push(t.csat);
     if(t.horas !== null && t.horas !== undefined) b.horas.push(t.horas);
+    if(t.horasPrimeiraResposta !== null && t.horasPrimeiraResposta !== undefined) b.horasPrimeira.push(t.horasPrimeiraResposta);
+    if(t.horasAtivo !== null && t.horasAtivo !== undefined) b.horasAtivo.push(t.horasAtivo);
+    if(t.transferencias !== null && t.transferencias !== undefined) b.transferencias.push(t.transferencias);
+    if(t.aberto) b.abertos += 1;
     if(t.ts !== null && t.ts !== undefined) b.tss.push(t.ts);
     if(t.dia !== null && t.dia !== undefined) b.dias.push(t.dia);
     const dk = t.depto || 'N/D';
@@ -582,6 +588,10 @@ function aggregate(){
       promotores, neutros, detratores,
       csat_interno_medio: b.csats.length ? Math.round(avg(b.csats)*100)/100 : null,
       horas_medias_resolucao: b.horas.length ? Math.round(avg(b.horas)*10)/10 : null,
+      horas_primeira_resposta: b.horasPrimeira.length ? Math.round(avg(b.horasPrimeira)*10)/10 : null,
+      horas_atendimento_ativo: b.horasAtivo.length ? Math.round(avg(b.horasAtivo)*10)/10 : null,
+      transferencias_medias: b.transferencias.length ? Math.round(avg(b.transferencias)*10)/10 : null,
+      abertos: b.abertos,
       dias_entre_chamados: (() => { const g = avgGapDays(b.tss); return g !== null ? Math.round(g*10)/10 : null; })(),
       dia_medio_mes: b.dias.length ? Math.round(avg(b.dias)*10)/10 : null,
       deptoCounts: b.deptos,
@@ -600,8 +610,8 @@ function aggregate(){
 
   const grupos = [];
   grupoMap.forEach((members, gname) => {
-    const notas = [], csats = [], horas = [], tss = [], dias = [];
-    let chamados = 0, sem_nota = 0;
+    const notas = [], csats = [], horas = [], horasPrimeira = [], horasAtivo = [], transferencias = [], tss = [], dias = [];
+    let chamados = 0, sem_nota = 0, abertos = 0;
     const deptos = {};
     const isRealGroup = gname !== UNIDENTIFIED_GROUP;
     // recompute notas/csats/horas/tss/dias/chamados/sem_nota from filteredTickets directly,
@@ -613,6 +623,10 @@ function aggregate(){
       if(t.nota !== null && t.nota !== undefined) notas.push(t.nota); else sem_nota += 1;
       if(t.csat !== null && t.csat !== undefined) csats.push(t.csat);
       if(t.horas !== null && t.horas !== undefined) horas.push(t.horas);
+      if(t.horasPrimeiraResposta !== null && t.horasPrimeiraResposta !== undefined) horasPrimeira.push(t.horasPrimeiraResposta);
+      if(t.horasAtivo !== null && t.horasAtivo !== undefined) horasAtivo.push(t.horasAtivo);
+      if(t.transferencias !== null && t.transferencias !== undefined) transferencias.push(t.transferencias);
+      if(t.aberto) abertos += 1;
       if(t.ts !== null && t.ts !== undefined) tss.push(t.ts);
       if(t.dia !== null && t.dia !== undefined) dias.push(t.dia);
       const dk = t.depto || 'N/D';
@@ -629,6 +643,7 @@ function aggregate(){
         chamados:0, nota_media:null, qtd_avaliados:0, sem_nota:0,
         promotores:0, neutros:0, detratores:0,
         csat_interno_medio:null, horas_medias_resolucao:null,
+        horas_primeira_resposta:null, horas_atendimento_ativo:null, transferencias_medias:null, abertos:0,
         dias_entre_chamados:null, dia_medio_mes:null, deptoCounts:{}, depto_dominante:null
       });
       membrosFinais = ROSTER_BY_GRUPO[gname].map(emp => {
@@ -671,6 +686,10 @@ function aggregate(){
       promotores, neutros, detratores,
       csat_interno_medio: csats.length ? Math.round(avg(csats)*100)/100 : null,
       horas_medias_resolucao: horas.length ? Math.round(avg(horas)*10)/10 : null,
+      horas_primeira_resposta: horasPrimeira.length ? Math.round(avg(horasPrimeira)*10)/10 : null,
+      horas_atendimento_ativo: horasAtivo.length ? Math.round(avg(horasAtivo)*10)/10 : null,
+      transferencias_medias: transferencias.length ? Math.round(avg(transferencias)*10)/10 : null,
+      abertos: abertos,
       dias_entre_chamados: (() => { const g = avgGapDays(tss); return g !== null ? Math.round(g*10)/10 : null; })(),
       dia_medio_mes: dias.length ? Math.round(avg(dias)*10)/10 : null,
       deptoCounts: deptos,
@@ -1190,25 +1209,45 @@ function fmt2(v){ return (v === null || v === undefined) ? '—' : v.toFixed(2);
 function buildReportData(){
   const rows = lastFilteredRows.length ? lastFilteredRows : lastRows;
   const entities = rows.map(r => r.data);
+  const tickets = lastFilteredTickets; // dados por chamado — usados pra médias gerais corretas (ponderadas)
 
   const totalChamados = entities.reduce((s,e) => s + e.chamados, 0);
   const totalSemNota = entities.reduce((s,e) => s + e.sem_nota, 0);
   const avaliados = entities.reduce((s,e) => s + e.qtd_avaliados, 0);
-  const csats = entities.filter(e => e.csat_interno_medio !== null).map(e => e.csat_interno_medio);
-  const horasArr = entities.filter(e => e.horas_medias_resolucao !== null).map(e => e.horas_medias_resolucao);
   const notaPonderada = entities.reduce((s,e) => s + (e.nota_media !== null ? e.nota_media * e.qtd_avaliados : 0), 0);
+
+  // ---- médias gerais calculadas direto por chamado (ponderadas de verdade, não média de médias) ----
+  const csatVals = tickets.filter(t => t.csat !== null && t.csat !== undefined).map(t => t.csat);
+  const horasVals = tickets.filter(t => t.horas !== null && t.horas !== undefined).map(t => t.horas);
+  const primeiraVals = tickets.filter(t => t.horasPrimeiraResposta !== null && t.horasPrimeiraResposta !== undefined).map(t => t.horasPrimeiraResposta);
+  const ativoVals = tickets.filter(t => t.horasAtivo !== null && t.horasAtivo !== undefined).map(t => t.horasAtivo);
+  const transfVals = tickets.filter(t => t.transferencias !== null && t.transferencias !== undefined).map(t => t.transferencias);
+  const abertosCount = tickets.filter(t => t.aberto).length;
 
   // distribuição por situação
   const situDist = {};
   entities.forEach(e => { const k = e.situacao || 'N/D'; situDist[k] = (situDist[k]||0) + 1; });
 
-  // departamentos (soma bruta a partir de deptoCounts de cada entidade)
+  // departamentos: volume (soma bruta a partir de deptoCounts de cada entidade)
   const deptTotais = {};
   entities.forEach(e => {
     const counts = e.deptoCounts || {};
     for(const dk in counts) deptTotais[dk] = (deptTotais[dk]||0) + counts[dk];
   });
   const topDeptos = Object.entries(deptTotais).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // departamentos: tempo médio de resolução (direto por chamado, agrupado por depto)
+  const deptoHoras = {};
+  tickets.forEach(t => {
+    if(t.horas === null || t.horas === undefined) return;
+    const dk = t.depto || 'N/D';
+    if(!deptoHoras[dk]) deptoHoras[dk] = [];
+    deptoHoras[dk].push(t.horas);
+  });
+  const deptosMaisLentos = Object.entries(deptoHoras)
+    .map(([nome, arr]) => ({ nome, media: avg(arr), qtd: arr.length }))
+    .filter(d => d.qtd >= 5) // evita ruído de departamentos com poucos chamados
+    .sort((a,b) => b.media - a.media).slice(0,5);
 
   // top 5 mais chamados
   const topChamados = [...entities].sort((a,b)=>b.chamados-a.chamados).slice(0,5);
@@ -1236,6 +1275,14 @@ function buildReportData(){
   const piorHoras = entities.filter(e => e.situacao === 'ATIVO' && e.horas_medias_resolucao !== null)
     .sort((a,b) => b.horas_medias_resolucao - a.horas_medias_resolucao).slice(0,5);
 
+  // top 5 maiores tempos até a primeira resposta (só ativos, mín. 2 chamados)
+  const piorPrimeiraResposta = entities.filter(e => e.situacao === 'ATIVO' && e.chamados >= 2 && e.horas_primeira_resposta !== null)
+    .sort((a,b) => b.horas_primeira_resposta - a.horas_primeira_resposta).slice(0,5);
+
+  // top 5 clientes com mais transferências médias por chamado (indica retrabalho/desorganização)
+  const maisTransferencias = entities.filter(e => e.chamados >= 2 && e.transferencias_medias !== null)
+    .sort((a,b) => b.transferencias_medias - a.transferencias_medias).slice(0,5);
+
   // grupos vs avulsos, e não identificado
   const gruposCount = entities.filter(e => e.membros).length;
   const avulsosCount = entities.length - gruposCount;
@@ -1243,11 +1290,16 @@ function buildReportData(){
 
   return {
     totalChamados, totalSemNota, avaliados,
-    csatMedio: csats.length ? avg(csats) : null,
-    horasMedia: horasArr.length ? avg(horasArr) : null,
+    csatMedio: csatVals.length ? avg(csatVals) : null,
+    horasMedia: horasVals.length ? avg(horasVals) : null,
+    primeiraRespostaMedia: primeiraVals.length ? avg(primeiraVals) : null,
+    atendimentoAtivoMedia: ativoVals.length ? avg(ativoVals) : null,
+    transferenciasMedia: transfVals.length ? avg(transfVals) : null,
+    abertosCount, abertosPct: totalChamados ? Math.round((abertosCount/totalChamados)*100) : null,
     npsMedio: avaliados ? notaPonderada/avaliados : null,
     promotores, neutros, detratores, npsScore,
-    situDist, topDeptos, topChamados, piorNps, melhorNps, piorHoras, maisFrequentes,
+    situDist, topDeptos, deptosMaisLentos, topChamados, piorNps, melhorNps, piorHoras,
+    piorPrimeiraResposta, maisTransferencias, maisFrequentes,
     gruposCount, avulsosCount, naoIdentificado,
     totalEntidades: entities.length
   };
@@ -1285,12 +1337,28 @@ function renderReport(){
     `<tr><td>${e.nome}</td><td>${fmt1(e.horas_medias_resolucao)}h</td><td>${e.chamados}</td></tr>`
   ).join('');
 
+  const primeiraRespostaRows = d.piorPrimeiraResposta.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.horas_primeira_resposta)}h</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
+  const transferenciasRows = d.maisTransferencias.map(e =>
+    `<tr><td>${e.nome}</td><td>${fmt1(e.transferencias_medias)}</td><td>${e.chamados}</td></tr>`
+  ).join('');
+
+  const deptosLentosRows = d.deptosMaisLentos.map(dp =>
+    `<tr><td>${dp.nome}</td><td>${fmt1(dp.media)}h</td><td>${dp.qtd}</td></tr>`
+  ).join('');
+
   const bullets = [];
   bullets.push(`No período analisado, foram registrados <b>${d.totalChamados.toLocaleString('pt-BR')} chamados</b> entre <b>${d.totalEntidades} clientes/grupos</b> (${d.gruposCount} grupos, ${d.avulsosCount} avulsos).`);
   bullets.push(`O NPS médio ponderado é <b>${fmt1(d.npsMedio)}</b>, com <b>${d.avaliados}</b> avaliações reais recebidas e <b>${d.totalSemNota.toLocaleString('pt-BR')}</b> chamados sem nota (${totalPct(d.totalSemNota, d.totalChamados)}% do total).`);
   if(d.avaliados) bullets.push(`Dessas avaliações: <b>${d.promotores}</b> promotoras (9-10), <b>${d.neutros}</b> neutras (7-8) e <b>${d.detratores}</b> detratoras (0-6) — score NPS de <b>${d.npsScore}</b>.`);
-  bullets.push(`O CSAT interno médio (estimativa por tempo de atendimento) é <b>${fmt2(d.csatMedio)}</b> de 5, e o tempo médio de resolução geral é de <b>${fmt1(d.horasMedia)} horas</b>.`);
+  bullets.push(`O CSAT interno médio (estimativa por tempo de atendimento) é <b>${fmt2(d.csatMedio)}</b> de 5.`);
+  bullets.push(`Tempo médio até a <b>primeira resposta</b>: <b>${fmt1(d.primeiraRespostaMedia)} horas</b>. Tempo médio de <b>atendimento ativo</b> (só o tempo realmente conversando, sem contar espera): <b>${fmt1(d.atendimentoAtivoMedia)} horas</b>. Tempo médio de <b>resolução total</b> (do início ao fechamento): <b>${fmt1(d.horasMedia)} horas</b>.`);
+  if(d.transferenciasMedia !== null) bullets.push(`Em média, cada chamado passou por <b>${fmt1(d.transferenciasMedia)}</b> transferência(s) entre departamentos.`);
+  if(d.abertosCount) bullets.push(`<b>${d.abertosCount}</b> chamados (${d.abertosPct}%) ainda estão em aberto no momento da geração deste relatório.`);
   if(d.topDeptos.length) bullets.push(`O departamento com mais volume é <b>${d.topDeptos[0][0]}</b>, respondendo por <b>${totalPct(d.topDeptos[0][1], d.totalChamados)}%</b> dos chamados no período.`);
+  if(d.deptosMaisLentos.length) bullets.push(`O departamento com maior tempo médio de resolução (entre os com volume suficiente) é <b>${d.deptosMaisLentos[0].nome}</b>, com <b>${fmt1(d.deptosMaisLentos[0].media)} horas</b> em média.`);
   if(d.naoIdentificado) bullets.push(`<b>${d.naoIdentificado.chamados}</b> chamados (${totalPct(d.naoIdentificado.chamados, d.totalChamados)}%) não puderam ser ligados com certeza a um cliente cadastrado.`);
 
   const html = `
@@ -1313,6 +1381,15 @@ function renderReport(){
         <table class="report-table">
           <tr><th>Departamento</th><th>Chamados</th><th>% do total</th></tr>
           ${deptoRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Departamentos com maior tempo médio de resolução</h3>
+        <p class="report-note">Considera só departamentos com pelo menos 5 chamados no período, pra evitar médias com pouca base.</p>
+        <table class="report-table">
+          <tr><th>Departamento</th><th>Horas médias</th><th>Chamados</th></tr>
+          ${deptosLentosRows || '<tr><td colspan="3">Sem dados suficientes.</td></tr>'}
         </table>
       </div>
 
@@ -1354,6 +1431,23 @@ function renderReport(){
         <table class="report-table">
           <tr><th>Cliente</th><th>Horas médias</th><th>Chamados</th></tr>
           ${horasRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Maiores tempos até a primeira resposta (clientes ativos)</h3>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>Horas médias</th><th>Chamados</th></tr>
+          ${primeiraRespostaRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Clientes com mais transferências entre departamentos</h3>
+        <p class="report-note">Volume alto de transferências por chamado pode indicar retrabalho ou dificuldade em direcionar o atendimento certo.</p>
+        <table class="report-table">
+          <tr><th>Cliente</th><th>Transferências médias</th><th>Chamados</th></tr>
+          ${transferenciasRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
         </table>
       </div>
 
@@ -1961,6 +2055,9 @@ async function loadAllData(isAuto){
       const metrics = t.metrics || {};
       const horas = (typeof metrics.ticketTime === 'number') ? metrics.ticketTime / 3600 : null;
       const csat = csatInterno(metrics.waitingTime, metrics.ticketTime, t.isOpen);
+      const horasPrimeiraResposta = (typeof metrics.waitingTime === 'number') ? metrics.waitingTime / 3600 : null;
+      const horasAtivo = (typeof metrics.messagingTime === 'number') ? metrics.messagingTime / 3600 : null;
+      const transferencias = (typeof metrics.ticketTransferCount === 'number') ? metrics.ticketTransferCount : null;
 
       return {
         cliente: clienteNome,
@@ -1970,6 +2067,10 @@ async function loadAllData(isAuto){
         nota: notaPorTicket.has(t.id) ? notaPorTicket.get(t.id) : null,
         csat: csat,
         horas: (horas !== null && horas >= 0) ? horas : null,
+        horasPrimeiraResposta: (horasPrimeiraResposta !== null && horasPrimeiraResposta >= 0) ? horasPrimeiraResposta : null,
+        horasAtivo: (horasAtivo !== null && horasAtivo >= 0) ? horasAtivo : null,
+        transferencias: transferencias,
+        aberto: !!t.isOpen,
         depto: deptMap.get(t.departmentId) || 'N/D'
       };
     });

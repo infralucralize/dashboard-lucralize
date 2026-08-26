@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>Painel de Atendimento por Cliente - Lucralize</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="token_config.js"></script>
 <script src="overrides_config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js"></script>
@@ -257,32 +259,103 @@
   .score-bad{ color:#a3231f !important; }
   .muted{ color:#777 !important; }
 }
-  .report-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px 28px; margin-bottom:24px; }
-  .report-wrap h2{ font-size:19px; margin:0 0 4px; font-family:inherit; }
-  .report-wrap .report-sub{ font-size:12.5px; color:var(--muted); margin-bottom:20px; }
-  .report-section{ margin-bottom:22px; }
-  .report-section h3{ font-size:14px; margin:0 0 10px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:6px; }
-  .report-bullets{ margin:0; padding-left:20px; }
-  .report-bullets li{ margin-bottom:7px; font-size:13.5px; line-height:1.5; }
-  .report-bullets b{ color:var(--text); }
-  .report-note{ font-size:12px; color:var(--muted); margin:0 0 10px; }
-  .report-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
-  .report-table th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 10px; border-bottom:1px solid var(--border); }
-  .report-table td{ padding:7px 10px; border-bottom:1px solid var(--border); }
-  .report-table td:first-child{ font-weight:600; }
-  .report-actions{ display:flex; gap:10px; margin-top:6px; }
-  .report-grid-mini{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-top:6px; }
-  .report-mini-card{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
-  .report-mini-card .n{ font-size:20px; font-weight:700; }
-  .report-mini-card .l{ font-size:11px; color:var(--muted); }
+  /* ============ RELATÓRIO EXECUTIVO — sistema de design ============ */
+  :root{
+    --rpt-faint:#5b626f; --rpt-serif:'Fraunces', Georgia, serif;
+    --rpt-sans:'IBM Plex Sans', -apple-system, sans-serif; --rpt-mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  .report-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:32px 36px; margin-bottom:24px; font-family:var(--rpt-sans); }
+
+  .rpt-masthead{ display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:8px; flex-wrap:wrap; }
+  .rpt-eyebrow{ font-family:var(--rpt-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+  .rpt-eyebrow .bars{ display:inline-flex; align-items:flex-end; gap:2px; height:12px; }
+  .rpt-eyebrow .bars i{ width:3px; display:block; border-radius:1px; background:var(--bad); }
+  .rpt-eyebrow .bars i:nth-child(1){ height:5px; }
+  .rpt-eyebrow .bars i:nth-child(2){ height:12px; background:var(--accent); }
+  .rpt-eyebrow .bars i:nth-child(3){ height:9px; background:var(--accent); }
+  .report-wrap h2{ font-family:var(--rpt-serif); font-weight:600; font-size:30px; letter-spacing:-.01em; margin:0 0 6px; color:#fff; }
+  .report-wrap .report-sub{ font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:0; }
+  .rpt-masthead-right{ text-align:right; font-family:var(--rpt-mono); font-size:11px; color:var(--rpt-faint); white-space:nowrap; }
+  .rpt-badge-filter{ display:inline-block; margin-top:8px; background:var(--panel2); border:1px solid var(--border); color:var(--accent); padding:4px 10px; border-radius:20px; font-size:11px; }
+  .rpt-rule{ border:none; border-top:1px solid var(--border); margin:24px 0 32px; }
+
+  .rpt-kpi-strip{ display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:40px; }
+  .rpt-kpi{ background:var(--panel2); padding:16px 16px 14px; }
+  .rpt-kpi .l{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:8px; }
+  .rpt-kpi .v{ font-family:var(--rpt-mono); font-size:22px; font-weight:600; color:#fff; letter-spacing:-.01em; }
+  .rpt-kpi .v small{ font-size:12px; color:var(--rpt-faint); font-weight:400; }
+  .rpt-kpi .s{ font-size:11px; color:var(--rpt-faint); margin-top:5px; }
+  .rpt-kpi .s.warn{ color:var(--warn); }
+  .rpt-kpi .s.good{ color:var(--good); }
+
+  .report-section{ margin-bottom:40px; }
+  .rpt-section-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .report-section h3{ font-family:var(--rpt-serif); font-weight:600; font-size:17px; color:#fff; margin:0; border:none; padding:0; }
+  .rpt-section-note{ font-size:11.5px; color:var(--rpt-faint); white-space:nowrap; }
+  .rpt-section-head::after{ content:''; flex:1; height:1px; background:var(--border); min-width:30px; }
+
+  .report-bullets{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:22px 24px; margin:0; list-style:none; display:grid; gap:12px; }
+  .report-bullets li{ font-size:13.5px; line-height:1.6; color:var(--muted); padding-left:18px; position:relative; }
+  .report-bullets li::before{ content:''; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+  .report-bullets b{ color:var(--text); font-weight:600; }
+  .report-bullets .flag{ color:var(--bad); font-weight:600; }
+  .report-note{ font-size:11.5px; color:var(--rpt-faint); margin:0 0 10px; }
+
+  .rpt-situ-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .rpt-situ-pill{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 20px; min-width:110px; }
+  .rpt-situ-pill .n{ font-family:var(--rpt-mono); font-size:20px; font-weight:600; color:#fff; }
+  .rpt-situ-pill .l{ font-size:11px; color:var(--muted); margin-top:3px; }
+  .rpt-situ-pill.ativo{ border-color:var(--accent); }
+  .rpt-situ-pill.ativo .n{ color:var(--accent); }
+
+  .rpt-rank-list{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:4px 22px; }
+  .rpt-rank-row{ display:grid; grid-template-columns:170px 1fr 120px; align-items:center; gap:16px; padding:9px 0; border-bottom:1px solid var(--border); }
+  .rpt-rank-row:last-child{ border-bottom:none; }
+  .rpt-rank-name{ font-size:13px; color:var(--text); font-weight:500; }
+  .rpt-rank-sub{ display:block; font-size:10.5px; color:var(--rpt-faint); margin-top:1px; font-weight:400; }
+  .rpt-rank-track{ height:6px; background:var(--panel); border-radius:3px; overflow:hidden; }
+  .rpt-rank-fill{ height:100%; border-radius:3px; background:linear-gradient(90deg,#8a8f99,#fff); }
+  .rpt-rank-num{ font-family:var(--rpt-mono); text-align:right; }
+  .rpt-rank-num .count-line{ font-size:12.5px; color:var(--text); font-weight:600; white-space:nowrap; }
+  .rpt-rank-num .count-line .of-total{ color:var(--rpt-faint); font-weight:400; }
+  .rpt-rank-num .pct{ display:block; font-family:var(--rpt-mono); font-size:14px; color:#fff; font-weight:700; margin-top:1px; }
+  .rpt-rank-num.plain{ font-size:13.5px; color:#fff; font-weight:700; }
+
+  .rpt-table-pair{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:900px){ .rpt-table-pair{ grid-template-columns:1fr; } }
+  .rpt-table-card{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .rpt-table-card .tc-head{ padding:14px 18px 10px; border-bottom:1px solid var(--border); }
+  .rpt-table-card .tc-head h4{ font-size:13px; font-weight:600; color:var(--text); margin:0; }
+  .rpt-table-card .tc-note{ font-size:10.5px; color:var(--rpt-faint); margin-top:2px; }
+
+  .report-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:0; font-family:var(--rpt-mono); }
+  .report-table th{ text-align:right; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#fff; font-weight:700; padding:9px 16px 7px; border-bottom:1px solid var(--border); font-family:var(--rpt-sans); }
+  .report-table th:first-child{ text-align:left; }
+  .report-table td{ padding:9px 16px; border-bottom:1px solid var(--border); text-align:right; color:var(--text); }
+  .report-table td:first-child{ text-align:left; font-family:var(--rpt-sans); font-weight:500; }
+  .report-table tr:last-child td{ border-bottom:none; }
+  .report-table tr:hover td{ background:var(--panel); }
+  .report-table td.rpt-strong{ color:#fff; font-weight:700; font-size:14.5px; }
+
+  .report-actions{ display:flex; gap:10px; margin-top:8px; }
 
   @media print{
     body.printing-report .toolbar, body.printing-report .config-panel,
     body.printing-report table, body.printing-report .kpis{ display:none !important; }
     body.printing-report #reportArea{ display:block !important; }
     body.printing-report .report-wrap{ border:none !important; background:#fff !important; }
-    body.printing-report .report-section h3{ color:#111 !important; }
-    body.printing-report .report-mini-card{ background:#fff !important; border:1px solid #ccc !important; }
+    body.printing-report .report-wrap h2, body.printing-report .report-section h3{ color:#111 !important; }
+    body.printing-report .report-sub, body.printing-report .rpt-section-note,
+    body.printing-report .rpt-rank-sub, body.printing-report .tc-note, body.printing-report .report-note{ color:#666 !important; }
+    body.printing-report .rpt-kpi, body.printing-report .rpt-situ-pill,
+    body.printing-report .rpt-rank-list, body.printing-report .rpt-table-card,
+    body.printing-report .report-bullets{ background:#fff !important; border:1px solid #ccc !important; }
+    body.printing-report .rpt-kpi .v, body.printing-report .rpt-situ-pill .n,
+    body.printing-report .rpt-rank-num, body.printing-report .rpt-rank-num.plain,
+    body.printing-report .report-table td.rpt-strong, body.printing-report .report-table th,
+    body.printing-report .report-wrap h2, body.printing-report .rpt-rank-name,
+    body.printing-report .report-bullets b{ color:#111 !important; }
+    body.printing-report .rpt-rank-fill{ background:#999 !important; }
     body:not(.printing-report) #reportArea{ display:none !important; }
   }
 </style>
@@ -1305,48 +1378,69 @@ function buildReportData(){
   };
 }
 
+// classificação de cor específica do relatório executivo (thresholds combinados no mockup):
+// NPS: <7 ruim, 7-8.9 médio, >=9 bom | CSAT: <3 ruim, 3-3.9 médio, >=4 bom (mesmos limites do scoreClass5)
+function rptNpsClass(v){
+  if(v === null || v === undefined) return '';
+  if(v >= 9) return 'score-good';
+  if(v >= 7) return 'score-mid';
+  return 'score-bad';
+}
+function rptCsatClass(v){ return scoreClass5(v); }
+
 function renderReport(){
   const d = buildReportData();
   const situLabels = { 'ATIVO':'Ativos', 'INATIVO':'Inativos', 'SUSPENSO':'Suspensos', 'EM CANCELAMENTO':'Em cancelamento', 'BAIXADA':'Baixados', 'N/D':'Não identificado' };
 
   const situHtml = Object.entries(d.situDist).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
-    `<div class="report-mini-card"><div class="n">${v}</div><div class="l">${situLabels[k]||k}</div></div>`
+    `<div class="rpt-situ-pill${k==='ATIVO'?' ativo':''}"><div class="n">${v}</div><div class="l">${situLabels[k]||k}</div></div>`
   ).join('');
 
-  const deptoRows = d.topDeptos.map(([nome,qtd]) =>
-    `<tr><td>${nome}</td><td>${qtd}</td><td>${totalPct(qtd, d.totalChamados)}%</td></tr>`
-  ).join('');
+  const deptoRankHtml = d.topDeptos.map(([nome,qtd]) => {
+    const pct = totalPct(qtd, d.totalChamados);
+    return `<div class="rpt-rank-row">
+      <div class="rpt-rank-name">${nome}</div>
+      <div class="rpt-rank-track"><div class="rpt-rank-fill" style="width:${pct}%"></div></div>
+      <div class="rpt-rank-num"><span class="count-line">${qtd.toLocaleString('pt-BR')} <span class="of-total">/ ${d.totalChamados.toLocaleString('pt-BR')}</span></span><span class="pct">${pct}%</span></div>
+    </div>`;
+  }).join('');
+
+  const maxDeptoHoras = d.deptosMaisLentos.length ? d.deptosMaisLentos[0].media : 1;
+  const deptosLentosHtml = d.deptosMaisLentos.map(dp => {
+    const width = maxDeptoHoras ? Math.round((dp.media / maxDeptoHoras) * 100) : 0;
+    return `<div class="rpt-rank-row">
+      <div class="rpt-rank-name">${dp.nome}<span class="rpt-rank-sub">${dp.qtd} chamados</span></div>
+      <div class="rpt-rank-track"><div class="rpt-rank-fill" style="width:${width}%"></div></div>
+      <div class="rpt-rank-num plain">${fmt1(dp.media)}h</div>
+    </div>`;
+  }).join('');
 
   const chamadosRows = d.topChamados.map(e =>
-    `<tr><td>${e.nome}</td><td>${e.chamados}</td><td>${fmt1(e.nota_media)}</td><td>${fmt2(e.csat_interno_medio)}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="rpt-strong">${e.chamados}</td><td class="${rptNpsClass(e.nota_media)}">${fmt1(e.nota_media)}</td><td class="${rptCsatClass(e.csat_interno_medio)}">${fmt2(e.csat_interno_medio)}</td></tr>`
   ).join('');
 
   const npsRows = d.piorNps.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.nota_media)}</td><td>${e.qtd_avaliados}</td><td>${e.chamados}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="${rptNpsClass(e.nota_media)}">${fmt1(e.nota_media)}</td><td class="rpt-strong">${e.qtd_avaliados}</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const melhorNpsRows = d.melhorNps.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.nota_media)}</td><td>${e.qtd_avaliados}</td><td>${e.chamados}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="${rptNpsClass(e.nota_media)}">${fmt1(e.nota_media)}</td><td class="rpt-strong">${e.qtd_avaliados}</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const frequentesRows = d.maisFrequentes.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.dias_entre_chamados)}</td><td>${e.chamados}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="rpt-strong">${fmt1(e.dias_entre_chamados)}</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const horasRows = d.piorHoras.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.horas_medias_resolucao)}h</td><td>${e.chamados}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="rpt-strong">${fmt1(e.horas_medias_resolucao)}h</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const primeiraRespostaRows = d.piorPrimeiraResposta.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.horas_primeira_resposta)}h</td><td>${e.chamados}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="rpt-strong">${fmt1(e.horas_primeira_resposta)}h</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const transferenciasRows = d.maisTransferencias.map(e =>
-    `<tr><td>${e.nome}</td><td>${fmt1(e.transferencias_medias)}</td><td>${e.chamados}</td></tr>`
-  ).join('');
-
-  const deptosLentosRows = d.deptosMaisLentos.map(dp =>
-    `<tr><td>${dp.nome}</td><td>${fmt1(dp.media)}h</td><td>${dp.qtd}</td></tr>`
+    `<tr><td>${e.nome}</td><td class="rpt-strong">${fmt1(e.transferencias_medias)}</td><td class="rpt-strong">${e.chamados}</td></tr>`
   ).join('');
 
   const bullets = [];
@@ -1359,108 +1453,154 @@ function renderReport(){
   if(d.abertosCount) bullets.push(`<b>${d.abertosCount}</b> chamados (${d.abertosPct}%) ainda estão em aberto no momento da geração deste relatório.`);
   if(d.topDeptos.length) bullets.push(`O departamento com mais volume é <b>${d.topDeptos[0][0]}</b>, respondendo por <b>${totalPct(d.topDeptos[0][1], d.totalChamados)}%</b> dos chamados no período.`);
   if(d.deptosMaisLentos.length) bullets.push(`O departamento com maior tempo médio de resolução (entre os com volume suficiente) é <b>${d.deptosMaisLentos[0].nome}</b>, com <b>${fmt1(d.deptosMaisLentos[0].media)} horas</b> em média.`);
-  if(d.naoIdentificado) bullets.push(`<b>${d.naoIdentificado.chamados}</b> chamados (${totalPct(d.naoIdentificado.chamados, d.totalChamados)}%) não puderam ser ligados com certeza a um cliente cadastrado.`);
+  if(d.naoIdentificado) bullets.push(`<span class="flag">${d.naoIdentificado.chamados}</span> chamados (${totalPct(d.naoIdentificado.chamados, d.totalChamados)}%) não puderam ser ligados com certeza a um cliente cadastrado.`);
 
   const html = `
-    <div class="report-wrap">
-      <h2>Relatório executivo — Painel de Atendimento</h2>
-      <div class="report-sub" id="reportContext"></div>
-
-      <div class="report-section">
-        <h3>Visão geral</h3>
-        <ul class="report-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+    <div class="rpt-masthead">
+      <div>
+        <div class="rpt-eyebrow"><span class="bars"><i></i><i></i><i></i></span>Relatório executivo</div>
+        <h2>Painel de Atendimento</h2>
+        <div class="report-sub" id="reportContext"></div>
       </div>
-
-      <div class="report-section">
-        <h3>Distribuição por situação</h3>
-        <div class="report-grid-mini">${situHtml}</div>
+      <div class="rpt-masthead-right">
+        GRUPO LUCRALIZE
       </div>
+    </div>
+    <hr class="rpt-rule">
 
-      <div class="report-section">
-        <h3>Departamentos com mais volume</h3>
-        <table class="report-table">
-          <tr><th>Departamento</th><th>Chamados</th><th>% do total</th></tr>
-          ${deptoRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
-        </table>
+    <div class="rpt-kpi-strip">
+      <div class="rpt-kpi">
+        <div class="l">Chamados</div>
+        <div class="v">${d.totalChamados.toLocaleString('pt-BR')}</div>
+        <div class="s">${d.totalEntidades} clientes/grupos · ${d.gruposCount} grupos, ${d.avulsosCount} avulsos</div>
       </div>
-
-      <div class="report-section">
-        <h3>Departamentos com maior tempo médio de resolução</h3>
-        <p class="report-note">Considera só departamentos com pelo menos 5 chamados no período, pra evitar médias com pouca base.</p>
-        <table class="report-table">
-          <tr><th>Departamento</th><th>Horas médias</th><th>Chamados</th></tr>
-          ${deptosLentosRows || '<tr><td colspan="3">Sem dados suficientes.</td></tr>'}
-        </table>
+      <div class="rpt-kpi">
+        <div class="l">NPS médio</div>
+        <div class="v">${fmt1(d.npsMedio)}</div>
+        <div class="s good">Score NPS ${d.npsScore ?? '—'} · ${d.promotores} promotoras</div>
       </div>
+      <div class="rpt-kpi">
+        <div class="l">CSAT interno</div>
+        <div class="v">${fmt2(d.csatMedio)}<small> / 5</small></div>
+        <div class="s">Estimativa por tempo de atendimento</div>
+      </div>
+      <div class="rpt-kpi">
+        <div class="l">Resolução total</div>
+        <div class="v">${fmt1(d.horasMedia)}<small>h</small></div>
+        <div class="s">1ª resposta ${fmt1(d.primeiraRespostaMedia)}h · ativo ${fmt1(d.atendimentoAtivoMedia)}h</div>
+      </div>
+      <div class="rpt-kpi">
+        <div class="l">Sem nota</div>
+        <div class="v">${totalPct(d.totalSemNota, d.totalChamados)}%</div>
+        <div class="s warn">${d.totalSemNota.toLocaleString('pt-BR')} de ${d.totalChamados.toLocaleString('pt-BR')} chamados</div>
+      </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Clientes/grupos com mais chamados</h3>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Visão geral</h3></div>
+      <ul class="report-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+    </div>
+
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Distribuição por situação</h3></div>
+      <div class="rpt-situ-row">${situHtml || '<div class="rpt-situ-pill"><div class="n">—</div><div class="l">Sem dados</div></div>'}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Departamentos por volume</h3><span class="rpt-section-note">% do total de chamados</span></div>
+      <div class="rpt-rank-list">${deptoRankHtml || '<div class="rpt-rank-row"><div class="rpt-rank-name">Sem dados.</div><div></div><div></div></div>'}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Departamentos mais lentos</h3><span class="rpt-section-note">horas médias de resolução · mín. 5 chamados</span></div>
+      <div class="rpt-rank-list">${deptosLentosHtml || '<div class="rpt-rank-row"><div class="rpt-rank-name">Sem dados suficientes.</div><div></div><div></div></div>'}</div>
+    </div>
+
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Clientes/grupos com mais chamados</h3><span class="rpt-section-note">NPS de 0 a 10 · CSAT interno de 1 a 5</span></div>
+      <div class="rpt-table-card">
         <table class="report-table">
           <tr><th>Cliente</th><th>Chamados</th><th>NPS</th><th>CSAT interno</th></tr>
           ${chamadosRows || '<tr><td colspan="4">Sem dados.</td></tr>'}
         </table>
       </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Piores NPS (mín. 3 avaliações)</h3>
-        <table class="report-table">
-          <tr><th>Cliente</th><th>NPS</th><th>Avaliações</th><th>Chamados</th></tr>
-          ${npsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
-        </table>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Notas dos clientes</h3><span class="rpt-section-note">mínimo de 3 avaliações · NPS de 0 a 10</span></div>
+      <div class="rpt-table-pair">
+        <div class="rpt-table-card">
+          <div class="tc-head"><h4>Piores NPS</h4><div class="tc-note">Atenção prioritária</div></div>
+          <table class="report-table">
+            <tr><th>Cliente</th><th>NPS</th><th>Aval.</th><th>Chamados</th></tr>
+            ${npsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
+          </table>
+        </div>
+        <div class="rpt-table-card">
+          <div class="tc-head"><h4>Melhores NPS</h4><div class="tc-note">Casos de sucesso</div></div>
+          <table class="report-table">
+            <tr><th>Cliente</th><th>NPS</th><th>Aval.</th><th>Chamados</th></tr>
+            ${melhorNpsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
+          </table>
+        </div>
       </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Melhores NPS (mín. 3 avaliações)</h3>
-        <table class="report-table">
-          <tr><th>Cliente</th><th>NPS</th><th>Avaliações</th><th>Chamados</th></tr>
-          ${melhorNpsRows || '<tr><td colspan="4">Nenhum cliente com avaliações suficientes.</td></tr>'}
-        </table>
-      </div>
-
-      <div class="report-section">
-        <h3>Contato mais frequente (cadência mais curta, mín. 3 chamados)</h3>
-        <p class="report-note">Dias entre chamados mais baixo pode indicar demanda recorrente ou um problema que não se resolve de vez.</p>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Contato mais frequente</h3><span class="rpt-section-note">cadência mais curta · mín. 3 chamados</span></div>
+      <p class="report-note">Dias entre chamados mais baixo pode indicar demanda recorrente ou um problema que não se resolve de vez.</p>
+      <div class="rpt-table-card">
         <table class="report-table">
           <tr><th>Cliente</th><th>Dias entre chamados</th><th>Chamados</th></tr>
           ${frequentesRows || '<tr><td colspan="3">Sem dados suficientes.</td></tr>'}
         </table>
       </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Maiores tempos de resolução (clientes ativos)</h3>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Maiores tempos de resolução</h3><span class="rpt-section-note">clientes ativos</span></div>
+      <div class="rpt-table-card">
         <table class="report-table">
           <tr><th>Cliente</th><th>Horas médias</th><th>Chamados</th></tr>
           ${horasRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
         </table>
       </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Maiores tempos até a primeira resposta (clientes ativos)</h3>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Maiores tempos até a primeira resposta</h3><span class="rpt-section-note">clientes ativos</span></div>
+      <div class="rpt-table-card">
         <table class="report-table">
           <tr><th>Cliente</th><th>Horas médias</th><th>Chamados</th></tr>
           ${primeiraRespostaRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
         </table>
       </div>
+    </div>
 
-      <div class="report-section">
-        <h3>Clientes com mais transferências entre departamentos</h3>
-        <p class="report-note">Volume alto de transferências por chamado pode indicar retrabalho ou dificuldade em direcionar o atendimento certo.</p>
+    <div class="report-section">
+      <div class="rpt-section-head"><h3>Clientes com mais transferências</h3><span class="rpt-section-note">retrabalho / dificuldade de direcionar o atendimento</span></div>
+      <div class="rpt-table-card">
         <table class="report-table">
           <tr><th>Cliente</th><th>Transferências médias</th><th>Chamados</th></tr>
           ${transferenciasRows || '<tr><td colspan="3">Sem dados.</td></tr>'}
         </table>
       </div>
+    </div>
 
-      <div class="report-actions">
-        <button class="chip" id="printReportBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ Gerar PDF do relatório</button>
-        <button class="chip" id="closeReportBtn" style="cursor:pointer; border:none; font:inherit;">Fechar relatório</button>
-      </div>
+    <div class="report-actions">
+      <button class="chip" id="printReportBtn" style="cursor:pointer; border:none; font:inherit;">🖨️ Gerar PDF do relatório</button>
+      <button class="chip" id="closeReportBtn" style="cursor:pointer; border:none; font:inherit;">Fechar relatório</button>
     </div>
   `;
 
-  document.getElementById('reportArea').innerHTML = html;
+  const wrap = document.createElement('div');
+  wrap.className = 'report-wrap';
+  wrap.innerHTML = html;
+  const area = document.getElementById('reportArea');
+  area.innerHTML = '';
+  area.appendChild(wrap);
   document.getElementById('reportContext').textContent = buildContextLine();
-  document.getElementById('reportArea').style.display = 'block';
+  area.style.display = 'block';
 
   document.getElementById('printReportBtn').addEventListener('click', () => {
     document.body.classList.add('printing-report');

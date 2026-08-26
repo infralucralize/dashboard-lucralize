@@ -830,7 +830,7 @@ function render(){
   });
 
   document.getElementById('countBadge').textContent = `${filtered.length} registro(s) exibido(s)`;
-  renderKpis(rows);
+  renderKpis(filtered);
   refreshFilterIcons();
 }
 

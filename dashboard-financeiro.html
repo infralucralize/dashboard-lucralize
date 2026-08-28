@@ -163,6 +163,8 @@
     <p class="sub">Cliente já entrou em contato (ou foi contatado) depois do dia de vencimento do honorário — só para chamados que conseguimos ligar a um cliente com dia de vencimento cadastrado</p>
     <div class="legend" id="legendVenc"></div>
     <div class="chart-box"><canvas id="chartVenc"></canvas></div>
+    <p class="sub" style="margin-top:16px;">Quais clientes estão entrando nessa contagem, no período selecionado — pra conferência manual</p>
+    <table id="tableClientesVenc"></table>
   </div>
 
   <div class="panel">
@@ -371,9 +373,9 @@ function buildSimpleMatcher(clients){
     const found = new Map();
     for(const cand of candidates){
       const ctoks = tokensOf(cand);
-      if(!ctoks.size) continue;
+      if(ctoks.size < 2) continue; // pedaço genérico demais (1 palavra só) — não arrisca casar por ele
       for(const c of withTokens){
-        if(!c._tokens.size) continue;
+        if(c._tokens.size < 2) continue; // mesma proteção do lado da empresa
         if(isSubset(c._tokens, ctoks) || isSubset(ctoks, c._tokens)) found.set(c.title, c);
       }
     }
@@ -669,6 +671,33 @@ function renderClientTable(tableId, hostKey){
   table.innerHTML = rows;
 }
 
+function renderVencClientTable(){
+  const table = document.getElementById('tableClientesVenc');
+  const ck = contaHostKey(), tk = techHostKey();
+  const rowsData = [];
+  [[ck,'Contabilidade'], [tk,'Tech']].forEach(([hostKey, label]) => {
+    const porCliente = RESULT.accounts[hostKey].porCliente;
+    porCliente.forEach((d, nome) => {
+      if(d.apos_vencimento > 0){
+        rowsData.push({ divisao: label, nome, apos_vencimento: d.apos_vencimento, chamados: d.chamados });
+      }
+    });
+  });
+  rowsData.sort((a,b) => b.apos_vencimento - a.apos_vencimento);
+
+  if(!rowsData.length){
+    table.innerHTML = `<tr><th>Divisão</th><th>Cliente</th><th>Chamados após venc.</th><th>Total de chamados</th></tr>
+      <tr><td colspan="4">Nenhum chamado ligado a um cliente com dia de vencimento cadastrado, no período.</td></tr>`;
+    return;
+  }
+
+  let rows = `<tr><th>Divisão</th><th>Cliente</th><th>Chamados após venc.</th><th>Total de chamados</th></tr>`;
+  rowsData.forEach(r => {
+    rows += `<tr><td>${r.divisao}</td><td>${r.nome}</td><td>${r.apos_vencimento}</td><td>${r.chamados}</td></tr>`;
+  });
+  table.innerHTML = rows;
+}
+
 function renderAll(mode){
   if(!RESULT) return;
   renderKPIs();
@@ -689,6 +718,7 @@ function renderAll(mode){
   document.getElementById('legendComp').innerHTML = legendHtml([{color:colors.conta,label:'Contabilidade'},{color:colors.tech,label:'Tech'}]);
   document.getElementById('legendVenc').innerHTML = legendHtml([{color:colors.conta,label:'Contabilidade'},{color:colors.tech,label:'Tech'}]);
 
+  renderVencClientTable();
   renderClientTable('tableClientesConta', contaHostKey());
   renderClientTable('tableClientesTech', techHostKey());
 
